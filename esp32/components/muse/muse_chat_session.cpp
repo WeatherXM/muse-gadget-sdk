@@ -247,7 +247,7 @@ struct turn_t {
     size_t body_sent;
     char *texts;             /* MAX_MSGS * TEXT_MAX: each message's text */
     uint32_t pcm_out;        /* reply audio frames handed to the voice task */
-    char committed[512];     /* finals that arrived before the half-close */
+    char committed[1024];    /* finals that arrived before the half-close (or UI prompt text) */
     char partial[512];
     char user_ids[2][80];
     muse_chat_rejected_t rejected;
@@ -1028,7 +1028,7 @@ static void turn_done(bool complete)
 }
 
 /* Ends any turn in progress and starts a fresh one. False if Hatch can't be reached. */
-static bool turn_start(uint32_t gen, bool text, bool ui_text = false)
+static bool turn_start(uint32_t gen, bool text, bool ui_text = false, const char *prompt_text = nullptr)
 {
     if (s_turn.phase != P_IDLE) {
         if (s_turn.text) {
@@ -1053,11 +1053,20 @@ static bool turn_start(uint32_t gen, bool text, bool ui_text = false)
     s_turn.start_us = now_us();
     resampler_init(&s_turn.up, MIC_RATE, DICT_RATE);
     if (ui_text) {
+        if (prompt_text && prompt_text[0]) {
+            snprintf(s_turn.committed, sizeof(s_turn.committed), "SENT: %s", prompt_text);
+        }
         muse_state_set_asleep(false);
         muse_state_poke();
         muse_state_set_progress(0);
         muse_state_set_mode(MUSE_MODE_THINKING);
-        muse_state_set_caption(s_connected ? "ASKING MUSE..." : "CONNECTING TO MUSE...");
+        char page[MUSE_CAPTION_MAX];
+        if (s_turn.committed[0] && muse_hatch_caption_at(s_turn.committed, 0, page, sizeof(page)) && page[0]) {
+            strlcpy(s_reply_shown, page, sizeof(s_reply_shown));
+            muse_state_set_caption("%s", page);
+        } else {
+            muse_state_set_caption(s_connected ? "ASKING MUSE..." : "CONNECTING TO MUSE...");
+        }
     }
     if (!ensure_connected()) {
         turn_fail(muse_hatch_configured() ? "CAN'T REACH MUSE" : "MUSE NOT SET UP");
@@ -1273,7 +1282,7 @@ static void post_chat(const char *text)
 /* A typed turn: the text goes straight to the chat. */
 static void text_begin(const char *text, bool ui_text)
 {
-    if (!turn_start(0, true, ui_text)) {
+    if (!turn_start(0, true, ui_text, text)) {
         return;
     }
     ESP_LOGI(TAG, "typed turn: %u bytes (ui=%d)", (unsigned)strlen(text), (int)ui_text);
@@ -1283,7 +1292,13 @@ static void text_begin(const char *text, bool ui_text)
         muse_hatch_console("sent", nullptr, "\"bytes\":%u", (unsigned)strlen(text));
         if (s_turn.ui_text) {
             muse_state_set_mode(MUSE_MODE_THINKING);
-            muse_state_set_caption("WAITING FOR MUSE...");
+            char page[MUSE_CAPTION_MAX];
+            if (s_turn.committed[0] && muse_hatch_caption_at(s_turn.committed, 0, page, sizeof(page)) && page[0]) {
+                strlcpy(s_reply_shown, page, sizeof(s_reply_shown));
+                muse_state_set_caption("%s", page);
+            } else {
+                muse_state_set_caption("WAITING FOR MUSE...");
+            }
         }
     }
 }
@@ -1613,6 +1628,23 @@ static void on_chat_ack(stream_t *s)
 static void start_tts(void)
 {
     if (s_turn.tts_msg >= 0) {
+        return;
+    }
+    if (s_turn.ui_text && s_turn.nmsgs == 0 && s_turn.committed[0] && s_turn.chat_us > 0) {
+        size_t len = strlen(s_turn.committed);
+        size_t cycle = len + TEXT_HOLD_S * TEXT_CHARS_PER_S;
+        int64_t elapsed_us = now_us() - s_turn.chat_us;
+        size_t elapsed_chars = elapsed_us > 0 ? (size_t)(elapsed_us * TEXT_CHARS_PER_S / 1000000LL) : 0;
+        size_t at = cycle ? (elapsed_chars % cycle) : 0;
+        if (at >= len) {
+            at = len ? len - 1 : 0;
+        }
+        char page[MUSE_CAPTION_MAX];
+        if (muse_hatch_caption_at(s_turn.committed, at, page, sizeof(page)) && page[0] &&
+            strcmp(page, s_reply_shown) != 0) {
+            strlcpy(s_reply_shown, page, sizeof(s_reply_shown));
+            muse_state_set_caption("%s", page);
+        }
         return;
     }
     for (int i = 0; i < s_turn.nmsgs; i++) {
