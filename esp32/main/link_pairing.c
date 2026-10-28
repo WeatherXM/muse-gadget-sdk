@@ -28,12 +28,18 @@
 #include "mbedtls/bignum.h"
 #include "mbedtls/ecp.h"
 #include "mbedtls/md.h"
+#if __has_include("mbedtls/private/gcm.h")
 #include "mbedtls/private/gcm.h"
+#else
+#include "mbedtls/gcm.h"
+#endif
 #include "mbedtls/platform_util.h"
 
 #include "psa/crypto.h"
+#if __has_include("psa_crypto_driver_esp_ecdsa.h")
 #include "psa_crypto_driver_esp_ecdsa.h"
 #include "psa_crypto_driver_esp_ecdsa_contexts.h"
+#endif
 
 #include "esp_efuse.h"
 #include "esp_log.h"

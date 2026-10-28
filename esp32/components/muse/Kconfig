@@ -121,6 +121,9 @@ menu "Muse"
         config MUSE_BOARD_AI_PASSPORT
             bool "FoloToy AI Passport (ESP32-C3, three buttons, no touch)"
             depends on IDF_TARGET_ESP32C3
+        config MUSE_BOARD_WXM_WG1200
+            bool "WeatherXM WG1200 / SenseCAP Indicator (480x480 touch LCD, BMP390 + SX1262 LoRa)"
+            depends on IDF_TARGET_ESP32S3
     endchoice
 
     config MUSE_ENABLED
@@ -157,6 +160,7 @@ menu "Muse"
         default "waveshare_s3_lcd128" if MUSE_BOARD_WAVESHARE_S3_LCD128
         default "vn_s3_183" if MUSE_BOARD_VN_S3_183
         default "ai_passport" if MUSE_BOARD_AI_PASSPORT
+        default "wxm_wg1200" if MUSE_BOARD_WXM_WG1200
         default "none"
 
     # E-paper boards draw Muse with FreeInk (components/muse/eink/) instead
@@ -187,7 +191,7 @@ menu "Muse"
     # (the Watcher's USB-C goes to a CH342) or the chip has none.
     config MUSE_CONSOLE_UART
         bool
-        default y if MUSE_BOARD_SENSECAP_WATCHER || MUSE_BOARD_WAVESHARE_S3_LCD7 || MUSE_BOARD_WAVESHARE_S3_LCD128 || MUSE_BOARD_RETERMINAL_STICKY || !SOC_USB_SERIAL_JTAG_SUPPORTED
+        default y if MUSE_BOARD_SENSECAP_WATCHER || MUSE_BOARD_WAVESHARE_S3_LCD7 || MUSE_BOARD_WAVESHARE_S3_LCD128 || MUSE_BOARD_RETERMINAL_STICKY || MUSE_BOARD_WXM_WG1200 || !SOC_USB_SERIAL_JTAG_SUPPORTED
 
     # A board overlay can raise this for a quiet speaker.
     config MUSE_DEFAULT_VOLUME

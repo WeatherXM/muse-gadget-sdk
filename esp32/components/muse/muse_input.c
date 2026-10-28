@@ -51,6 +51,12 @@
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+#include "cJSON.h"
+#include "muse_settings_ui.h"
+#include "wg1200_weather.h"
+#include "wxm_boot_mgr.h"
+#endif
 
 static atomic_uint s_touch_talk_events;
 
@@ -826,6 +832,53 @@ static bool console_command(char *line, bool whole)
     }
     if (!strcmp(line, "ui=settings") || !strcmp(line, "ui=face")) {
         muse_ui_bench_page(!strcmp(line, "ui=settings"));
+        return true;
+    }
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    if (!strcmp(line, "ui=weather") || !strcmp(line, "ui=weatherxm")) {
+        muse_ui_bench_page(true);
+        muse_settings_ui_open_wg1200_page(line + 3);
+        printf("@ui %s\n", line + 3);
+        fflush(stdout);
+        return true;
+    }
+#endif
+#endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    if (!strcmp(line, "weather")) {
+        cJSON *resp = wg1200_weather_sensors_command();
+        if (resp) {
+            char *json = cJSON_PrintUnformatted(resp);
+            if (json) {
+                printf("@weather %s\n", json);
+                free(json);
+            }
+            cJSON_Delete(resp);
+        }
+        fflush(stdout);
+        return true;
+    }
+    if (!strcmp(line, "boot.info")) {
+        wxm_boot_info_t info;
+        wxm_boot_get_info(&info);
+        printf("@boot.info {\"running\":\"ota_1\",\"wxm_label\":\"%s\",\"wxm_project\":\"%s\","
+               "\"wxm_version\":\"%s\",\"alt_label\":\"%s\",\"alt_project\":\"%s\",\"alt_version\":\"%s\"}\n",
+               info.wxm_label, info.wxm_project, info.wxm_version,
+               info.alt_label, info.alt_project, info.alt_version);
+        fflush(stdout);
+        return true;
+    }
+    if (!strcmp(line, "boot.weatherxm")) {
+        cJSON *resp = wg1200_boot_weatherxm_command(NULL);
+        if (resp) {
+            char *json = cJSON_PrintUnformatted(resp);
+            if (json) {
+                printf("@boot.weatherxm %s\n", json);
+                free(json);
+            }
+            cJSON_Delete(resp);
+        }
+        fflush(stdout);
         return true;
     }
 #endif

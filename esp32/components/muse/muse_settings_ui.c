@@ -42,6 +42,12 @@
 #if CONFIG_MUSE_VIDEO
 #include "muse_video.h"
 #endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+#include <math.h>
+#include "boards/board_wxm_wg1200.h"
+#include "wg1200_weather.h"
+#include "wxm_boot_mgr.h"
+#endif
 
 /* Keep content in a column that stays inside a round panel (and fits a 368 px one). */
 #define LIST_W 330
@@ -65,6 +71,9 @@ static int s_text_scale = 466;
 static lv_obj_t *s_tile;
 static lv_obj_t *s_current;
 static lv_obj_t *s_home, *s_wifi, *s_hatch, *s_ble, *s_sound, *s_sleep, *s_battery, *s_power, *s_text;
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+static lv_obj_t *s_weather, *s_weatherxm;
+#endif
 
 /*
  * Only home is kept. A sub-page is built when it opens and deleted on the way
@@ -80,6 +89,9 @@ typedef struct {
 static lv_obj_t *s_home_wifi, *s_home_hatch, *s_home_ble, *s_home_sound, *s_home_sleep, *s_home_battery, *s_about;
 #if CONFIG_MUSE_VIDEO
 static lv_obj_t *s_home_camera;
+#endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+static lv_obj_t *s_home_weather, *s_home_weatherxm;
 #endif
 
 /* Wi-Fi page. */
@@ -438,7 +450,12 @@ static lv_obj_t *info_row(lv_obj_t *list, const char *text)
 
 static void drop(lv_obj_t *p)
 {
-    lv_obj_t **const pages[] = { &s_wifi, &s_hatch, &s_ble, &s_sound, &s_sleep, &s_battery, &s_power, &s_text };
+    lv_obj_t **const pages[] = {
+        &s_wifi, &s_hatch, &s_ble, &s_sound, &s_sleep, &s_battery, &s_power, &s_text,
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+        &s_weather, &s_weatherxm,
+#endif
+    };
     for (size_t i = 0; i < sizeof(pages) / sizeof(pages[0]); i++) {
         if (*pages[i] == p) {
             *pages[i] = NULL;
@@ -1163,10 +1180,25 @@ static void on_bright(lv_event_t *e)
     }
 }
 
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+static void on_test_buzzer(lv_event_t *e)
+{
+    (void)e;
+    wg1200_buzzer_beep(80);
+}
+#endif
+
 static void build_sound_page(lv_obj_t *tile)
 {
     lv_obj_t *list;
     s_sound = page(tile, "SOUND", true, &list);
+    s_spk_sw = NULL;
+    s_vol_val = NULL;
+    s_vol_sl = NULL;
+    s_gain_val = NULL;
+    s_gain_sl = NULL;
+    s_mic_bar = NULL;
+    s_mic_val = NULL;
 #if CONFIG_MUSE_BOARD_M5STACK_STOPWATCH && CONFIG_MUSE_REALTIME_VOICE
     s_notes_sw = switch_row(list, "Voice notes", muse_settings_voice_notes(), on_notes_sw);
     note(list, "Off: hold yellow to talk live, release to listen; blue ends the call. "
@@ -1176,27 +1208,35 @@ static void build_sound_page(lv_obj_t *tile)
         s_spk_sw = switch_row(list, "Speaker", muse_settings_speaker_on(), on_speaker_sw);
         s_vol_sl = slider(list, "Volume", 0, 100, muse_settings_volume(), &s_vol_val, on_volume);
     }
-    s_gain_sl = slider(list, "Mic gain", 0, MUSE_MIC_GAIN_MAX / 3, muse_settings_mic_gain() / 3, &s_gain_val, on_gain);
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    s_spk_sw = switch_row(list, "Buzzer", muse_settings_speaker_on(), on_speaker_sw);
+    button(list, "Test buzzer", COLOR_ACCENT, on_test_buzzer, NULL);
+    note(list, "WG1200 uses a piezo/magnetic buzzer (B1 on PCA9535 IO1_5) for UI alerts and has no hardware microphone.");
+#endif
+    if (muse_board->audio_init || muse_board->mic_init) {
+        s_gain_sl = slider(list, "Mic gain", 0, MUSE_MIC_GAIN_MAX / 3, muse_settings_mic_gain() / 3, &s_gain_val, on_gain);
 
-    lv_obj_t *meter = lv_obj_create(list);
-    lv_obj_remove_style_all(meter);
-    lv_obj_set_size(meter, lv_pct(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(meter, 8, 0);
-    lv_obj_remove_flag(meter, LV_OBJ_FLAG_SCROLLABLE);
-    label(meter, &lv_font_montserrat_16, COLOR_DIM, "Mic level");
-    s_mic_val = label(meter, &lv_font_montserrat_16, COLOR_DIM, "");
-    lv_obj_align(s_mic_val, narrow_panel() ? LV_ALIGN_TOP_LEFT : LV_ALIGN_TOP_RIGHT,
-                 0, narrow_panel() ? 22 : 0);
-    s_mic_bar = lv_bar_create(meter);
-    lv_obj_set_size(s_mic_bar, lv_pct(94), 10);
-    lv_obj_align(s_mic_bar, LV_ALIGN_TOP_MID, 0, narrow_panel() ? 48 : 26);
-    lv_bar_set_range(s_mic_bar, 0, 60);   /* -70..-10 dBFS */
-    lv_obj_set_style_bg_color(s_mic_bar, lv_color_hex(0x2a2345), LV_PART_MAIN);
-    lv_obj_set_style_anim_duration(s_mic_bar, 80, 0);
-    if (muse_board->epaper) {
-        lv_obj_add_flag(meter, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        note(list, "Talk at arm's length: the bar should reach green (-30 to -15 dBFS) without going orange.");
+        lv_obj_t *meter = lv_obj_create(list);
+        lv_obj_remove_style_all(meter);
+        lv_obj_set_size(meter, lv_pct(100), LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_hor(meter, 8, 0);
+        lv_obj_remove_flag(meter, LV_OBJ_FLAG_SCROLLABLE);
+        label(meter, &lv_font_montserrat_16, COLOR_DIM, "Mic level");
+        s_mic_val = label(meter, &lv_font_montserrat_16, COLOR_DIM, "");
+        lv_obj_align(s_mic_val, narrow_panel() ? LV_ALIGN_TOP_LEFT : LV_ALIGN_TOP_RIGHT,
+                     0, narrow_panel() ? 22 : 0);
+        s_mic_bar = lv_bar_create(meter);
+        lv_obj_set_size(s_mic_bar, lv_pct(94), 10);
+        lv_obj_align(s_mic_bar, LV_ALIGN_TOP_MID, 0, narrow_panel() ? 48 : 26);
+        lv_bar_set_range(s_mic_bar, 0, 60);   /* -70..-10 dBFS */
+        lv_obj_set_style_bg_color(s_mic_bar, lv_color_hex(0x2a2345), LV_PART_MAIN);
+        lv_obj_set_style_anim_duration(s_mic_bar, 80, 0);
+        if (muse_board->epaper) {
+            lv_obj_add_flag(meter, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            note(list, "Talk at arm's length: the bar should reach green (-30 to -15 dBFS) without going orange.");
+        }
+        set_val(s_gain_val, "%d dB", muse_settings_mic_gain() / 3 * 3);
     }
 
     if (!muse_board->epaper) {
@@ -1204,7 +1244,6 @@ static void build_sound_page(lv_obj_t *tile)
         set_val(s_bright_val, "%d%%", muse_settings_brightness());
     }
     if (s_vol_val) set_val(s_vol_val, "%d%%", muse_settings_volume());
-    set_val(s_gain_val, "%d dB", muse_settings_mic_gain() / 3 * 3);
 }
 
 static void tick_sound(void)
@@ -1216,7 +1255,7 @@ static void tick_sound(void)
     if (s_spk_sw && on != lv_obj_has_state(s_spk_sw, LV_STATE_CHECKED)) {
         lv_obj_set_state(s_spk_sw, LV_STATE_CHECKED, on);
     }
-    if (muse_board->epaper) return;
+    if (muse_board->epaper || !s_mic_bar) return;
     float db = muse_voice_monitor_db();
     int v = (int)(db + 70.0f);
     v = v < 0 ? 0 : (v > 60 ? 60 : v);
@@ -1416,6 +1455,201 @@ static void build_power_page(lv_obj_t *tile)
     note(list, text);
 }
 
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+/* ---------- Weather (WG1200 BMP390 + SX1262 LoRa) ---------- */
+
+static lv_obj_t *s_wx_indoor_temp, *s_wx_indoor_press, *s_wx_radio_region, *s_wx_radio_stats;
+static lv_obj_t *s_wx_out_model, *s_wx_out_temp, *s_wx_out_wind, *s_wx_out_rain, *s_wx_out_solar, *s_wx_out_age;
+
+static void tick_weather(void);
+
+static void on_weather_region_cycle(lv_event_t *e)
+{
+    (void)e;
+    wg1200_weather_state_t st;
+    wg1200_weather_get_state(&st);
+    wg1200_weather_region_t next = (wg1200_weather_region_t)((st.region + 1) % WG1200_REGION_COUNT);
+    wg1200_weather_set_region(next);
+    wg1200_buzzer_beep(30);
+    tick_weather();
+}
+
+static void build_weather_page(lv_obj_t *tile)
+{
+    lv_obj_t *list;
+    s_weather = page(tile, "WEATHER", true, &list);
+    note(list, "Indoor BMP390 + Outdoor SX1262 LoRa");
+    s_wx_indoor_temp = info_row(list, "Indoor Temp");
+    s_wx_indoor_press = info_row(list, "Pressure");
+    row(list, LV_SYMBOL_WIFI, "LoRa Region", &s_wx_radio_region, on_weather_region_cycle, NULL);
+    s_wx_radio_stats = info_row(list, "SX1262 RX");
+    s_wx_out_model = info_row(list, "Outdoor Station");
+    s_wx_out_temp = info_row(list, "Outdoor Temp/RH");
+    s_wx_out_wind = info_row(list, "Wind");
+    s_wx_out_rain = info_row(list, "Rain");
+    s_wx_out_solar = info_row(list, "Solar / UV");
+    s_wx_out_age = info_row(list, "Last Packet");
+    note(list, "Tap LoRa Region to cycle EU868 / US915 / AS923. Receives WS1001 and WS1300 stations.");
+}
+
+static void tick_weather(void)
+{
+    wg1200_weather_state_t st;
+    wg1200_weather_get_state(&st);
+    char buf[64];
+
+    if (st.bmp390_valid && !isnan(st.indoor_temp_c)) {
+        snprintf(buf, sizeof(buf), "%.1f C", (double)st.indoor_temp_c);
+        set_text(s_wx_indoor_temp, buf);
+        snprintf(buf, sizeof(buf), "%.1f hPa", (double)st.indoor_pressure_hpa);
+        set_text(s_wx_indoor_press, buf);
+    } else {
+        set_text(s_wx_indoor_temp, st.bmp390_detected ? "Reading..." : "Offline");
+        set_text(s_wx_indoor_press, "-");
+    }
+
+    snprintf(buf, sizeof(buf), "%s (%.3f MHz)",
+             wg1200_weather_region_name(st.region), (double)st.freq_hz / 1e6);
+    set_text(s_wx_radio_region, buf);
+
+    if (!st.sx1262_detected) {
+        set_text(s_wx_radio_stats, "Offline");
+    } else if (st.rx_packets_valid > 0) {
+        snprintf(buf, sizeof(buf), "%lu pkts (%d dBm)",
+                 (unsigned long)st.rx_packets_valid, (int)st.rssi_dbm);
+        set_text(s_wx_radio_stats, buf);
+    } else {
+        set_text(s_wx_radio_stats, "Listening (0 pkts)");
+    }
+
+    if (st.outdoor_valid) {
+        snprintf(buf, sizeof(buf), "%s #%lX%s",
+                 st.station_model[0] ? st.station_model : "WXM",
+                 (unsigned long)st.station_id,
+                 st.battery_low ? " (LOW BAT)" : "");
+        set_text(s_wx_out_model, buf);
+
+        snprintf(buf, sizeof(buf), "%.1f C  /  %.0f%%",
+                 (double)st.outdoor_temp_c, (double)st.outdoor_humidity_pct);
+        set_text(s_wx_out_temp, buf);
+
+        snprintf(buf, sizeof(buf), "%.1f m/s @ %u deg",
+                 (double)st.wind_speed_ms, (unsigned)st.wind_dir_deg);
+        set_text(s_wx_out_wind, buf);
+
+        snprintf(buf, sizeof(buf), "%.1f mm", (double)st.rain_accum_mm);
+        set_text(s_wx_out_rain, buf);
+
+        snprintf(buf, sizeof(buf), "%.0f W/m2  UV %.1f",
+                 (double)st.solar_rad_wm2, (double)st.uv_index);
+        set_text(s_wx_out_solar, buf);
+
+        int64_t age_s = (esp_timer_get_time() - st.outdoor_updated_us) / 1000000LL;
+        snprintf(buf, sizeof(buf), "%llds ago", (long long)age_s);
+        set_text(s_wx_out_age, buf);
+    } else {
+        set_text(s_wx_out_model, "Waiting for signal...");
+        set_text(s_wx_out_temp, "-");
+        set_text(s_wx_out_wind, "-");
+        set_text(s_wx_out_rain, "-");
+        set_text(s_wx_out_solar, "-");
+        set_text(s_wx_out_age, "-");
+    }
+}
+
+/* ---------- WeatherXM Dual-Boot ---------- */
+
+static lv_obj_t *s_wxm_running, *s_wxm_factory, *s_wxm_ota0, *s_wxm_btn_factory_lbl, *s_wxm_btn_ota0_lbl;
+static int64_t s_wxm_factory_armed_us;
+static int64_t s_wxm_ota0_armed_us;
+
+static void on_boot_weatherxm_factory(lv_event_t *e)
+{
+    (void)e;
+    int64_t now = esp_timer_get_time();
+    if (s_wxm_factory_armed_us && now - s_wxm_factory_armed_us < 5000000) {
+        set_text(s_wxm_btn_factory_lbl, "Rebooting to WeatherXM...");
+        wg1200_buzzer_beep(120);
+        wxm_boot_return_to_weatherxm();
+        return;
+    }
+    s_wxm_factory_armed_us = now;
+    wg1200_buzzer_beep(30);
+    set_text(s_wxm_btn_factory_lbl, "Tap again to boot WeatherXM");
+}
+
+static void on_boot_weatherxm_ota0(lv_event_t *e)
+{
+    (void)e;
+    int64_t now = esp_timer_get_time();
+    if (s_wxm_ota0_armed_us && now - s_wxm_ota0_armed_us < 5000000) {
+        wxm_boot_info_t info;
+        wxm_boot_get_info(&info);
+        const esp_partition_t *target = info.alt_part ? info.alt_part : info.wxm_part;
+        if (target) {
+            set_text(s_wxm_btn_ota0_lbl, "Rebooting...");
+            wg1200_buzzer_beep(120);
+            wxm_boot_to_partition(target);
+        }
+        return;
+    }
+    s_wxm_ota0_armed_us = now;
+    wg1200_buzzer_beep(30);
+    set_text(s_wxm_btn_ota0_lbl, "Tap again to boot Alternate Slot");
+}
+
+static void build_weatherxm_page(lv_obj_t *tile)
+{
+    lv_obj_t *list;
+    s_weatherxm = page(tile, "WEATHERXM", true, &list);
+    s_wxm_factory_armed_us = 0;
+    s_wxm_ota0_armed_us = 0;
+    note(list, "Non-destructive Dual-Boot: WeatherXM keys, NVS & SPIFFS are untouched.");
+    s_wxm_running = info_row(list, "Active Slot");
+    s_wxm_factory = info_row(list, "WeatherXM Slot");
+    s_wxm_ota0 = info_row(list, "Alternate Slot");
+    button(list, LV_SYMBOL_POWER "  Return to WeatherXM", COLOR_OK,
+            on_boot_weatherxm_factory, &s_wxm_btn_factory_lbl);
+    button(list, LV_SYMBOL_REFRESH "  Boot Alternate Slot", COLOR_ACCENT,
+            on_boot_weatherxm_ota0, &s_wxm_btn_ota0_lbl);
+    note(list, "Tap twice within 5s to switch firmware. You can also hold the top hardware button for 5s anytime.");
+}
+
+static void tick_weatherxm(void)
+{
+    int64_t now = esp_timer_get_time();
+    if (s_wxm_factory_armed_us && now - s_wxm_factory_armed_us >= 5000000) {
+        s_wxm_factory_armed_us = 0;
+        set_text(s_wxm_btn_factory_lbl, LV_SYMBOL_POWER "  Return to WeatherXM");
+    }
+    if (s_wxm_ota0_armed_us && now - s_wxm_ota0_armed_us >= 5000000) {
+        s_wxm_ota0_armed_us = 0;
+        set_text(s_wxm_btn_ota0_lbl, LV_SYMBOL_REFRESH "  Boot Alternate Slot");
+    }
+
+    wxm_boot_info_t info;
+    wxm_boot_get_info(&info);
+    char buf[64];
+    set_text(s_wxm_running, "ota_1 (muse_nvs)");
+
+    if (info.wxm_part) {
+        snprintf(buf, sizeof(buf), "%s: %s %s",
+                 info.wxm_label, info.wxm_project, info.wxm_version);
+        set_text(s_wxm_factory, buf);
+    } else {
+        set_text(s_wxm_factory, "Unavailable");
+    }
+
+    if (info.alt_part) {
+        snprintf(buf, sizeof(buf), "%s: %s %s",
+                 info.alt_label, info.alt_project, info.alt_version);
+        set_text(s_wxm_ota0, buf);
+    } else {
+        set_text(s_wxm_ota0, "None");
+    }
+}
+#endif
+
 /* ---------- Home ---------- */
 
 static const page_t WIFI = { &s_wifi, build_wifi_page };
@@ -1425,6 +1659,10 @@ static const page_t SOUND = { &s_sound, build_sound_page };
 static const page_t SLEEP = { &s_sleep, build_sleep_page };
 static const page_t BATTERY = { &s_battery, build_battery_page };
 static const page_t POWER = { &s_power, build_power_page };
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+static const page_t WEATHER = { &s_weather, build_weather_page };
+static const page_t WEATHERXM = { &s_weatherxm, build_weatherxm_page };
+#endif
 
 #if CONFIG_MUSE_VIDEO
 /* Phone camera: the video view, which asks the phone for a stream. */
@@ -1439,6 +1677,10 @@ static void build_home(lv_obj_t *tile)
 {
     lv_obj_t *list;
     s_home = page(tile, "SETTINGS", false, &list);
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    row(list, LV_SYMBOL_EYE_OPEN, "Weather", &s_home_weather, on_nav, (void *)&WEATHER);
+    row(list, LV_SYMBOL_POWER, "WeatherXM", &s_home_weatherxm, on_nav, (void *)&WEATHERXM);
+#endif
     row(list, LV_SYMBOL_WIFI, "Wi-Fi", &s_home_wifi, on_nav, (void *)&WIFI);
     row(list, LV_SYMBOL_HOME, "Muse", &s_home_hatch, on_nav, (void *)&HATCH);
     row(list, LV_SYMBOL_BLUETOOTH, "Bluetooth", &s_home_ble, on_nav, (void *)&BLE);
@@ -1472,7 +1714,11 @@ static void tick_home(void)
     set_text(s_home_ble, b.state == MUSE_BLE_OFF ? "Off" : (b.state == MUSE_BLE_CONNECTED ? "Connected" : "On"));
 
     if (!muse_board->audio_init) {
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+        set_text(s_home_sound, muse_settings_speaker_on() ? "Buzzer on" : "Muted");
+#else
         set_text(s_home_sound, muse_board->mic_init ? "Mic only" : "No audio");
+#endif
     } else if (muse_settings_speaker_on()) {
         set_val(s_home_sound, "Vol %d%%", muse_settings_volume());
     } else {
@@ -1492,6 +1738,22 @@ static void tick_home(void)
     if (s_home_camera) {
         set_text(s_home_camera, muse_video_has_client() ? "Ready" : "No phone");
     }
+#endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    wg1200_weather_state_t st;
+    wg1200_weather_get_state(&st);
+    if (st.outdoor_valid) {
+        snprintf(buf, sizeof(buf), "%.1fC / %.0f%%",
+                 (double)st.outdoor_temp_c, (double)st.outdoor_humidity_pct);
+        set_text(s_home_weather, buf);
+    } else if (st.bmp390_valid && !isnan(st.indoor_temp_c)) {
+        snprintf(buf, sizeof(buf), "%.1fC %.0fhPa",
+                 (double)st.indoor_temp_c, (double)st.indoor_pressure_hpa);
+        set_text(s_home_weather, buf);
+    } else {
+        set_text(s_home_weather, st.sx1262_detected ? "Listening" : "Init");
+    }
+    set_text(s_home_weatherxm, "Dual-Boot");
 #endif
 
     snprintf(buf, sizeof(buf), narrow_panel() ? "Muse %s\n%s" : "Muse %s  -  %s", esp_app_get_description()->version,
@@ -1537,9 +1799,45 @@ void muse_settings_ui_tick(bool visible)
     } else if (s_current == s_battery) {
         tick_battery();
     }
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    else if (s_current == s_weather) {
+        tick_weather();
+    } else if (s_current == s_weatherxm) {
+        tick_weatherxm();
+    }
+#endif
 }
 
 bool muse_settings_ui_in_subpage(void)
 {
     return s_current != s_home;
 }
+
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+void muse_settings_ui_open_wg1200_page(const char *name)
+{
+    if (!s_tile || !s_home) return;
+    muse_board->display_lock(-1);
+    lv_obj_t *tv = lv_obj_get_parent(s_tile);
+    if (tv) {
+        lv_tileview_set_tile(tv, s_tile, LV_ANIM_OFF);
+    }
+    if (s_current != s_home) {
+        show(s_home);
+    }
+    const page_t *target = NULL;
+    if (name && strcmp(name, "weather") == 0) {
+        target = &WEATHER;
+    } else if (name && strcmp(name, "weatherxm") == 0) {
+        target = &WEATHERXM;
+    }
+    if (target) {
+        if (!*target->obj) {
+            target->build(s_tile);
+        }
+        show(*target->obj);
+    }
+    muse_settings_ui_tick(true);
+    muse_board->display_unlock();
+}
+#endif

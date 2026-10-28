@@ -76,6 +76,10 @@
 #if CONFIG_HOMEHUB_RETERMINAL_SHT4X
 #include "reterminal_sht4x.h"
 #endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+#include "wxm_boot_mgr.h"
+#include "wg1200_weather.h"
+#endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #endif
@@ -1942,6 +1946,14 @@ static cJSON *on_ws_command(
         return reterminal_sht4x_command();
     }
 #endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    if (strcmp(command, "sensors.read") == 0) {
+        return wg1200_weather_sensors_command();
+    }
+    if (strcmp(command, "device.boot_weatherxm") == 0) {
+        return wg1200_boot_weatherxm_command(params);
+    }
+#endif
     if (strcmp(command, "device.reset_vm") == 0) {
         return queue_ws_control(WS_CONTROL_RESET_VM, NULL);
     }
@@ -2566,6 +2578,9 @@ static void *psram_malloc(size_t sz) {
 }
 
 void app_run(void) {
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    wxm_boot_guard_init();
+#endif
     cJSON_Hooks hooks = { .malloc_fn = psram_malloc, .free_fn = free };
     cJSON_InitHooks(&hooks);
 
