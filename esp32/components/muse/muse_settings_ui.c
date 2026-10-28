@@ -1485,40 +1485,38 @@ static void format_wg1200_telemetry(char *buf, size_t cap)
     int n = 0;
     if (st.outdoor_valid) {
         n += snprintf(buf + n, cap - (size_t)n,
-                      "Temp: %.1f C, Humidity: %.0f%%, ",
+                      "%.1fC, %.0f%% RH, ",
                       (double)st.outdoor_temp_c, (double)st.outdoor_humidity_pct);
         if (st.bmp390_valid && (size_t)n < cap) {
             n += snprintf(buf + n, cap - (size_t)n,
-                          "Pressure: %.1f hPa, ",
+                          "%.0fhPa, ",
                           (double)st.indoor_pressure_hpa);
         }
         if ((size_t)n < cap) {
             snprintf(buf + n, cap - (size_t)n,
-                     "Wind: %.1f m/s (Gust: %.1f m/s) @ %u deg, "
-                     "Rain Rate: %.1f mm/h, Daily Rain: %.1f mm, "
-                     "UV: %.1f, Solar: %.1f W/m2 (%.0f lx).",
+                     "Wind %.1f/%.1fm/s %udeg, Rain %.1fmm/h (%.1fmm), UV %.1f.",
                      (double)st.wind_speed_ms, (double)st.wind_gust_ms, (unsigned)st.wind_dir_deg,
                      (double)st.rain_rate_mm_h, (double)st.rain_daily_mm,
-                     (double)st.uv_index, (double)st.solar_rad_wm2, (double)st.illuminance_lux);
+                     (double)st.uv_index);
         }
     } else if (st.bmp390_valid) {
-        snprintf(buf, cap, "Pressure: %.1f hPa (waiting for outdoor weather station packet).",
+        snprintf(buf, cap, "%.1fhPa (waiting for outdoor station).",
                  (double)st.indoor_pressure_hpa);
     } else {
-        snprintf(buf, cap, "Weather sensors initializing.");
+        snprintf(buf, cap, "Sensors initializing.");
     }
 }
 
 static void send_wg1200_prompt(const char *instruction)
 {
-    char telemetry[384];
+    char telemetry[256];
     format_wg1200_telemetry(telemetry, sizeof(telemetry));
-    size_t len = strlen(telemetry) + strlen(instruction) + 32;
+    size_t len = strlen(telemetry) + strlen(instruction) + 24;
     char *prompt = malloc(len);
     if (!prompt) {
         return;
     }
-    snprintf(prompt, len, "[Live Weather] %s %s", telemetry, instruction);
+    snprintf(prompt, len, "Weather: %s %s", telemetry, instruction);
     wg1200_buzzer_beep(30);
     show(s_home);
     muse_ui_show_face();
@@ -1529,56 +1527,39 @@ static void on_wx_ask_brief(lv_event_t *e)
 {
     (void)e;
     send_wg1200_prompt(
-        "Give a concise 2-sentence hyperlocal microclimate and short-term forecast briefing. "
-        "Reply directly in chat for the native Muse screen (do not call wg1200.notify).");
+        "Give a 2-sentence microclimate & forecast brief in chat (no wg1200.notify).");
 }
 
 static void on_wx_ask_smarthome(lv_event_t *e)
 {
     (void)e;
     send_wg1200_prompt(
-        "First call device.discover on this gadget to scan the local network (ARP, mDNS, SSDP, NetBIOS) "
-        "for smart-home devices, hubs, or appliances. Then, based ONLY on the actual LAN devices found "
-        "and these live weather readings, give a concise smart-home recommendation. Reply directly in chat.");
+        "Run device.discover to scan the LAN, then advise on found smart-home devices for this weather.");
 }
 
 void muse_settings_ui_trigger_wg1200_weather_card(void)
 {
     static const char *const k_styles[] = {
-        "Retro 1970s CRT TV Weather Broadcast",
-        "Japanese Ukiyo-e Woodblock Print (Hokusai style)",
-        "Studio Ghibli Painterly Anime Landscape",
-        "NASA Mission Control Telemetry HUD",
-        "16-bit SNES Pixel Art RPG Weather Screen",
-        "Minimalist Swiss Bauhaus Typography Poster",
-        "Watercolor Botanical & Sky Field Journal Sketch",
-        "Cyberpunk Neon Rain-Slicked Street Hologram",
-        "Vintage Brass Nautical Barometer & Maritime Chart",
-        "Isometric 3D Tiny Weather Station Diorama",
-        "Art Deco 1920s Travel Poster",
-        "Synthwave Sunset Outrun Grid",
+        "Retro 70s CRT TV",
+        "Japanese Ukiyo-e Woodblock",
+        "Studio Ghibli Anime",
+        "NASA Mission Control HUD",
+        "16-bit Pixel Art RPG",
+        "Swiss Bauhaus Poster",
+        "Watercolor Field Journal",
+        "Cyberpunk Neon",
+        "Vintage Nautical Chart",
+        "Isometric 3D Diorama",
+        "1920s Art Deco Poster",
+        "Synthwave Sunset",
     };
-    static const char *const k_twists[] = {
-        "Include a charming character or mascot dressed appropriately for this exact temperature, wind, and rain.",
-        "Include a witty one-line microclimate mood quote at the bottom of the card.",
-        "Dramatically emphasize the live sky lighting, UV, and wind motion in the artwork.",
-        "Feature bold, high-contrast typography for the temperature, wind gust, pressure, and rain.",
-        "Frame the weather metrics inside an ornate thematic border matching the art style.",
-        "Include a tiny visual indicator of what outdoor activity or drink fits this exact weather.",
-    };
-    uint32_t r1 = esp_random();
-    uint32_t r2 = esp_random();
-    const char *style = k_styles[r1 % (sizeof(k_styles) / sizeof(k_styles[0]))];
-    const char *twist = k_twists[r2 % (sizeof(k_twists) / sizeof(k_twists[0]))];
-    unsigned seed = (unsigned)((r1 ^ r2) % 10000U);
+    uint32_t r = esp_random();
+    const char *style = k_styles[r % (sizeof(k_styles) / sizeof(k_styles[0]))];
 
-    char instruction[512];
+    char instruction[160];
     snprintf(instruction, sizeof(instruction),
-             "Generate a unique 480x480 visual weather card image on the VM from these live readings "
-             "and push it to this screen using display.draw_file (do not call wg1200.notify). "
-             "Visual Art Style: %s. Creative Twist: %s (Random Seed #%u). "
-             "After drawing the image, reply with a 1-sentence description of the card.",
-             style, twist, seed);
+             "Draw a 480x480 \"%s\" weather card via display.draw_file and reply in 1 line.",
+             style);
     send_wg1200_prompt(instruction);
 }
 
