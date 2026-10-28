@@ -14,7 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Muse Gadgets
+# Muse Gadgets — WeatherXM WG1200 Port
+
+<p align="center">
+  <img src=".github/images/wg1200-weather-cards-collage.jpeg" width="900" alt="Unique AI-generated 480x480 weather cards rendered on the WeatherXM WG1200 from live WS1001/WS1300 LoRa weather station telemetry">
+</p>
+
+## WeatherXM WG1200 (WXM M2) 2-Way Muse Appliance
+
+This repository adds a full port of the **Muse ESP32 Device SDK** to the **WeatherXM WG1200** (`ESP32-S3-WROOM-1 N16R8`, 4.0" 480×480 ST7701S RGB565 touchscreen, Semtech SX1262 sub-GHz LoRa radio, Bosch BMP390 barometer, PCA9535 I/O expander). See the full hardware & setup guide in [`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md).
+
+### What This Port Does
+
+- **Non-Destructive Dual-Boot with Stock WeatherXM OS:** Installs RSA-3072 Secure Boot V2 signed Muse firmware into `ota_1` (`0x820000`) with an isolated `muse_nvs` partition (`0xF21000`). Your factory X.509 certificate (`esp_secure_cert`), encrypted WeatherXM NVS (`nvs` + `nvs_key`), `spiffs`, and `factory`/`ota_0` WeatherXM firmware remain 100% untouched. Switch back to WeatherXM anytime from the touchscreen (`Settings → WeatherXM`), by holding the top button for 5s, or remotely via Muse (`device.boot_weatherxm`).
+- **Live Outdoor LoRa Weather Station Receiver (`WS1001` / `WS1300`):** Initializes the onboard **Semtech SX1262** (`SPI3`) in LoRa WeatherXM P2P mode (`SF7 / BW125 / CR 4/5`, configurable across `EU868`, `US915`, `AS923`) alongside the onboard **Bosch BMP390** barometer. Computes live outdoor temperature, humidity, wind speed, wind gust, wind direction, rolling 1-hour rain rate (`mm/h`), daily rain accumulation (`mm`), UV index, solar irradiance (`W/m²`), illuminance (`lx`), station battery status, and barometric pressure (`hPa`).
+- **Generative 480×480 Weather Cards (Swipe Down on Muse Face):** Swipe down anywhere on the main Muse screen (or tap **Draw Weather Card** in `Settings → Weather`) to send live weather telemetry to your Muse VM with a randomized visual art style (Ukiyo-e woodblock, Studio Ghibli anime, Cyberpunk neon, Synthwave, 16-bit pixel RPG, Bauhaus poster, nautical chart, etc.). Muse generates a custom 480×480 card on the VM and streams it directly onto the WG1200 display via `display.draw_file`.
+- **Touchscreen Quick Actions & Native On-Screen Captions:** Even without a microphone, one-tap prompts (**Hyperlocal Brief**, **Draw Weather Card**, and **LAN Smart Home Check**) send live weather context over the Noise `/chat/stream` session, page the sent prompt on-screen while the VM works, and stream Muse's reply directly onto the native Muse UI.
+- **2-Way Cloud Muse VM → WG1200 Commands (`link.register` / `link.invoke`):**
+  - `sensors.read` — Queries live outdoor (`WS1001`/`WS1300`) and indoor (`BMP390`) telemetry whenever you ask Muse about the weather from your phone or laptop.
+  - `display.draw_file` / `display.draw_url` / `display.show_animation` — Renders 480×480 cards, charts, or animations onto the RGB565 panel.
+  - `wg1200.notify` — Pushes a dismissible alert card onto the 480×480 screen and beeps the passive buzzer (`PCA9535 IO1_5`).
+  - `device.discover` & Home-Network Tunnel — Scans the local LAN (ARP, mDNS, SSDP, NetBIOS) and bridges local HTTP smart-home APIs so Muse can pair live weather readings with actual devices on your network.
+  - `device.boot_weatherxm` — Reboots the gateway back into stock WeatherXM OS (`ota_0` or `factory`).
+
+---
 
 <p align="center">
   <picture>

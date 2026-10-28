@@ -16,6 +16,10 @@ limitations under the License.
 
 # WeatherXM WG1200 (WXM M2 Gateway)
 
+<p align="center">
+  <img src="../../.github/images/wg1200-weather-cards-collage.jpeg" width="800" alt="Unique AI-generated 480x480 weather cards rendered on the WeatherXM WG1200 from live WS1001/WS1300 LoRa weather station telemetry">
+</p>
+
 The **WeatherXM WG1200** (Seeed OEM variant of the SenseCAP Indicator D1L) is an
 ESP32-S3-WROOM-1 (N16R8: 16 MB QSPI flash, 8 MB octal PSRAM) desktop gateway
 with a 4.0-inch 480×480 ST7701S RGB565 capacitive touchscreen and a Semtech
