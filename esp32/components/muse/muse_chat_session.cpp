@@ -1625,12 +1625,22 @@ static void on_chat_ack(stream_t *s)
 
 /* ---- Turn: speech ---- */
 
+static bool has_reply_text(void)
+{
+    for (int i = 0; i < s_turn.nmsgs; i++) {
+        if (s_turn.msgs[i].len > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void start_tts(void)
 {
     if (s_turn.tts_msg >= 0) {
         return;
     }
-    if (s_turn.ui_text && s_turn.nmsgs == 0 && s_turn.committed[0] && s_turn.chat_us > 0) {
+    if (s_turn.ui_text && !has_reply_text() && s_turn.committed[0] && s_turn.chat_us > 0) {
         size_t len = strlen(s_turn.committed);
         size_t cycle = len + TEXT_HOLD_S * TEXT_CHARS_PER_S;
         int64_t elapsed_us = now_us() - s_turn.chat_us;
