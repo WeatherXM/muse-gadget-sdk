@@ -1558,7 +1558,7 @@ void muse_settings_ui_trigger_wg1200_weather_card(void)
 
     char instruction[160];
     snprintf(instruction, sizeof(instruction),
-             "Draw a 480x480 \"%s\" weather card via display.draw_file and reply in 1 line.",
+             "Draw a 480x480 \"%s\" weather card via display.draw_file.",
              style);
     send_wg1200_prompt(instruction);
 }
