@@ -77,6 +77,7 @@
 #include "reterminal_sht4x.h"
 #endif
 #if CONFIG_MUSE_BOARD_WXM_WG1200
+#include "boards/board_wxm_wg1200.h"
 #include "wxm_boot_mgr.h"
 #include "wg1200_weather.h"
 #endif
@@ -84,8 +85,12 @@
 #include "boards/watcher_camera.h"
 #endif
 #if CONFIG_MUSE_ENABLED
+#include "muse_account_api.h"
 #include "muse_glue.h"
 #include "muse_input.h"
+#include "muse_ui.h"
+#include "muse_settings.h"
+#include "muse_chat.h"
 // Muse joins Wi-Fi from its own settings, before or without pairing.
 #define WIFI_WITHOUT_PAIRING 1
 #else
@@ -1865,6 +1870,61 @@ static cJSON *bug_report_command(
 
 #endif  // CONFIG_HOMEHUB_BLE_COMMANDS
 
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+static cJSON *wg1200_notify_command(cJSON *params) {
+    cJSON *msg_item = params ? cJSON_GetObjectItem(params, "message") : NULL;
+    if (!cJSON_IsString(msg_item) || !msg_item->valuestring || !msg_item->valuestring[0]) {
+        return command_error("missing_param", "message is required");
+    }
+
+    const char *title_str = "Muse Alert";
+    cJSON *title_item = params ? cJSON_GetObjectItem(params, "title") : NULL;
+    if (title_item && !cJSON_IsNull(title_item)) {
+        if (!cJSON_IsString(title_item) || !title_item->valuestring) {
+            return command_error("invalid_params", "title must be a string");
+        }
+        if (title_item->valuestring[0]) {
+            title_str = title_item->valuestring;
+        }
+    }
+
+    int beep_ms = 120;
+    cJSON *beep_item = params ? cJSON_GetObjectItem(params, "beep_ms") : NULL;
+    if (beep_item && !cJSON_IsNull(beep_item)) {
+        if (!cJSON_IsNumber(beep_item) || beep_item->valueint < 0 || beep_item->valueint > 1000) {
+            return command_error("invalid_params", "beep_ms must be an integer between 0 and 1000");
+        }
+        beep_ms = beep_item->valueint;
+    }
+
+    int duration_s = 30;
+    cJSON *dur_item = params ? cJSON_GetObjectItem(params, "duration_s") : NULL;
+    if (dur_item && !cJSON_IsNull(dur_item)) {
+        if (!cJSON_IsNumber(dur_item) || dur_item->valueint < 0 || dur_item->valueint > 3600) {
+            return command_error("invalid_params", "duration_s must be an integer between 0 and 3600");
+        }
+        duration_s = dur_item->valueint;
+    }
+
+    if (!muse_ui_notify_show(title_str, msg_item->valuestring, duration_s)) {
+        return command_error("unavailable", "display UI is not ready");
+    }
+
+    bool muted = !muse_settings_speaker_on();
+    if (beep_ms > 0 && !muted) {
+        wg1200_buzzer_beep((uint32_t)beep_ms);
+    }
+
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddBoolToObject(result, "ok", true);
+    cJSON_AddStringToObject(result, "title", title_str);
+    cJSON_AddNumberToObject(result, "beep_ms", muted ? 0 : beep_ms);
+    cJSON_AddNumberToObject(result, "duration_s", duration_s);
+    cJSON_AddBoolToObject(result, "muted", muted);
+    return result;
+}
+#endif
+
 static cJSON *on_ws_command(
     const char *command, cJSON *params, const char *request_id,
     noise_ctrl_session_generation_t session_generation) {
@@ -1952,6 +2012,9 @@ static cJSON *on_ws_command(
     }
     if (strcmp(command, "device.boot_weatherxm") == 0) {
         return wg1200_boot_weatherxm_command(params);
+    }
+    if (strcmp(command, "wg1200.notify") == 0) {
+        return wg1200_notify_command(params);
     }
 #endif
     if (strcmp(command, "device.reset_vm") == 0) {
@@ -2264,6 +2327,49 @@ bool app_wifi_forget(const char *ssid) {
 #define MUSE_VM_RETRY_MIN_US (5LL * 1000 * 1000)
 #define MUSE_VM_RETRY_MAX_US (60LL * 1000 * 1000)
 
+static bool connect_muse_settings_vm_with_gate_held(void) {
+    if (muse_settings_hatch_token_len() == 0) return false;
+    char *token = calloc(1, MUSE_TOKEN_MAX + 1);
+    if (!token) return false;
+    muse_settings_hatch_token(token);
+    if (!token[0]) {
+        free(token);
+        return false;
+    }
+    char want[MUSE_VM_MAX + 1] = {0};
+    muse_settings_hatch_vm(want);
+
+    muse_hatch_vm_t vm;
+    memset(&vm, 0, sizeof(vm));
+    bool found = (muse_hatch_api_find_vm(token, want, &vm) == 0
+                  && vm.vm_id[0] && vm.vm_token && vm.vm_token[0]);
+    if (!found && want[0]) {
+        free(vm.vm_token);
+        snprintf(vm.vm_id, sizeof(vm.vm_id), "%s", want);
+        vm.vm_token = strdup(token);
+        found = (vm.vm_token != NULL);
+    }
+    memset(token, 0, MUSE_TOKEN_MAX + 1);
+    free(token);
+    if (!found) {
+        free(vm.vm_token);
+        memset(&vm, 0, sizeof(vm));
+        return false;
+    }
+
+    const char *name = vm.vm_name[0] ? vm.vm_name : vm.vm_id;
+    ESP_LOGI(TAG, "connecting to Muse settings VM %s", name);
+    ui_set_vm(name);
+    const char *network_ssid = strcmp(s_ui_wifi, "down") == 0 ? NULL : s_ui_wifi;
+    bool ok = noise_ctrl_connect(vm.vm_id, vm.vm_token, network_ssid);
+    if (vm.vm_token) {
+        memset(vm.vm_token, 0, strlen(vm.vm_token));
+        free(vm.vm_token);
+    }
+    memset(&vm, 0, sizeof(vm));
+    return ok;
+}
+
 // Muse's keeper joins Wi-Fi but can't reach the VM: that fetches the VM list
 // over HTTPS, which needs more stack than the keeper has, and by then there's
 // seldom the internal RAM for a task of its own. So the heartbeat does it (as
@@ -2272,9 +2378,14 @@ bool app_wifi_forget(const char *ssid) {
 static void muse_keep_vm_session(void) {
     static int64_t next_try;
     static int64_t backoff = MUSE_VM_RETRY_MIN_US;
-    if (!wifi_mgr_is_connected() || !config_is_provisioned() || noise_ctrl_is_running()) {
+    bool provisioned = config_is_provisioned();
+    bool has_hatch_token = muse_settings_hatch_token_len() > 0;
+    if (!wifi_mgr_is_connected() || (!provisioned && !has_hatch_token) || noise_ctrl_is_connected()) {
         next_try = 0;
         backoff = MUSE_VM_RETRY_MIN_US;
+        return;
+    }
+    if (noise_ctrl_is_running()) {
         return;
     }
     int64_t now = esp_timer_get_time();
@@ -2289,9 +2400,13 @@ static void muse_keep_vm_session(void) {
         connected = noise_ctrl_reconnect(strcmp(s_ui_wifi, "down") == 0 ? NULL : s_ui_wifi);
         if (connected) ESP_LOGI(TAG, "resuming the VM session from before the nap");
     }
-    connected = connected
-                || (ensure_access_token_ready_with_gate_held(false, true)
-                    && connect_preferred_vm_with_gate_held(0));
+    if (!connected && provisioned) {
+        connected = ensure_access_token_ready_with_gate_held(false, true)
+                    && connect_preferred_vm_with_gate_held(0);
+    }
+    if (!connected && has_hatch_token) {
+        connected = connect_muse_settings_vm_with_gate_held();
+    }
     ui_set_status(connected ? "auth_ok" : "auth_failed");
     led_status_set_state(connected ? LED_STATE_AUTH_OK : LED_STATE_ERROR);
     operation_gate_give();

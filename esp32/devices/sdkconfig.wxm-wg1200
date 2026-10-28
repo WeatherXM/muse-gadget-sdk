@@ -27,6 +27,7 @@ CONFIG_HOMEHUB_BLE_NAME_SUFFIX="-WG1200"
 #   printf '>sdk_token=mgst_...\n' > /dev/cu.usbserial-xxxx
 CONFIG_HOMEHUB_BUTTON_GPIO=38
 CONFIG_HOMEHUB_OTA_ENABLED=y
+CONFIG_HOMEHUB_DISPLAY_COMMANDS=y
 
 # Production WG1200 Dual-Boot Partition Table (at 0xC000 matching WG1200 bootloader)
 CONFIG_PARTITION_TABLE_CUSTOM=y

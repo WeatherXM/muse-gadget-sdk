@@ -8,6 +8,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "boards/board_wxm_wg1200.h"
 #include "wxm_boot_mgr.h"
@@ -15,6 +16,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/spi_master.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -636,6 +638,310 @@ static esp_err_t sx1262_init_hw(uint32_t freq_hz)
     return ESP_OK;
 }
 
+/* ── Rain Rate & Daily Rain Tracking (ported from wg1200-firmware ws_data.cpp) ─ */
+
+#define WS_DATA_PRECIP_RATE_DECAY_TIMEOUT_SEC   (15 * 60) /* 15 minutes */
+#define MAX_VALID_PRECIP_RATE_MM_H              300.0f
+#define MAX_SINGLE_PACKET_PRECIP_DELTA_MM       25.4f     /* 100 bucket tips in 16s */
+#define DAILY_PRECIP_NVS_MAGIC                  0x57584432U /* 'WXD2' */
+
+typedef struct {
+    uint32_t magic;
+    int32_t day_idx;
+    uint32_t station_id;
+    float baseline_cml;
+    float accum_rollover;
+    float cached;
+} daily_precip_nvs_blob_t;
+
+/* Retain daily rain + rain rate across warm reboots / OTA / dual-boot switches */
+typedef struct {
+    uint32_t magic;
+    int32_t daily_current_day_idx;
+    uint32_t daily_station_id;
+    float daily_baseline_cml;
+    float daily_accum_rollover;
+    float daily_precip_cached;
+    uint32_t rate_station_id;
+    float init_tip_cml;
+    int64_t init_tip_ts;
+    float oldest_tip_cml;
+    int64_t oldest_tip_ts;
+    float newest_tip_cml;
+    int64_t newest_tip_ts;
+} wg1200_rain_rtc_t;
+
+static RTC_NOINIT_ATTR wg1200_rain_rtc_t s_rain_rtc;
+
+/* Paired station ID & timezone offset inherited from factory WeatherXM NVS */
+static uint32_t s_paired_station_id = 0;
+static int64_t s_paired_station_last_seen_us = 0;
+static int32_t s_tz_offset_hours = 0;
+static bool s_ws1300_native_rate = false;
+
+static void reset_precip_rate_params_locked(void)
+{
+    s_rain_rtc.init_tip_cml = 0.0f;
+    s_rain_rtc.init_tip_ts = 0;
+    s_rain_rtc.oldest_tip_cml = 0.0f;
+    s_rain_rtc.oldest_tip_ts = 0;
+    s_rain_rtc.newest_tip_cml = 0.0f;
+    s_rain_rtc.newest_tip_ts = 0;
+}
+
+static void update_precip_rate_params_locked(float precip_cml, uint32_t pkt_sta_id)
+{
+    int64_t now_sec = esp_timer_get_time() / 1000000LL;
+    if (now_sec <= 0) {
+        now_sec = 1;
+    }
+
+    if (pkt_sta_id != 0 && s_rain_rtc.rate_station_id != 0 &&
+        pkt_sta_id != s_rain_rtc.rate_station_id) {
+        reset_precip_rate_params_locked();
+    }
+    if (pkt_sta_id != 0) {
+        s_rain_rtc.rate_station_id = pkt_sta_id;
+    }
+
+    /* Reset if uninitialized or if cumulative rain wrapped/decreased */
+    if (s_rain_rtc.init_tip_ts == 0 ||
+        precip_cml < s_rain_rtc.init_tip_cml ||
+        precip_cml < s_rain_rtc.oldest_tip_cml ||
+        precip_cml < s_rain_rtc.newest_tip_cml) {
+        reset_precip_rate_params_locked();
+        s_rain_rtc.init_tip_cml = precip_cml;
+        s_rain_rtc.init_tip_ts = now_sec;
+        return;
+    }
+
+    /* Reject unphysical single-packet cumulative jump (> 25.4 mm) */
+    float ref_cml = (s_rain_rtc.newest_tip_ts != 0) ? s_rain_rtc.newest_tip_cml
+                  : ((s_rain_rtc.oldest_tip_ts != 0) ? s_rain_rtc.oldest_tip_cml
+                                                     : s_rain_rtc.init_tip_cml);
+    if ((precip_cml - ref_cml) > MAX_SINGLE_PACKET_PRECIP_DELTA_MM) {
+        reset_precip_rate_params_locked();
+        s_rain_rtc.init_tip_cml = precip_cml;
+        s_rain_rtc.init_tip_ts = now_sec;
+        return;
+    }
+
+    /* If previous tip events decayed (>15 min with no tips), promote last cml as dry baseline */
+    int64_t last_tip_ts = (s_rain_rtc.newest_tip_ts != 0) ? s_rain_rtc.newest_tip_ts
+                                                          : s_rain_rtc.oldest_tip_ts;
+    if (last_tip_ts != 0 && (now_sec - last_tip_ts) >= WS_DATA_PRECIP_RATE_DECAY_TIMEOUT_SEC) {
+        reset_precip_rate_params_locked();
+        s_rain_rtc.init_tip_cml = ref_cml;
+        s_rain_rtc.init_tip_ts = last_tip_ts;
+    }
+
+    if (precip_cml == s_rain_rtc.init_tip_cml) {
+        return;
+    }
+
+    if (s_rain_rtc.oldest_tip_ts == 0) {
+        s_rain_rtc.oldest_tip_cml = precip_cml;
+        s_rain_rtc.oldest_tip_ts = now_sec;
+        return;
+    }
+    if (precip_cml == s_rain_rtc.oldest_tip_cml) {
+        return;
+    }
+
+    if (s_rain_rtc.newest_tip_ts == 0) {
+        s_rain_rtc.newest_tip_cml = precip_cml;
+        s_rain_rtc.newest_tip_ts = now_sec;
+        return;
+    }
+    if (precip_cml == s_rain_rtc.newest_tip_cml) {
+        return;
+    }
+
+    s_rain_rtc.oldest_tip_cml = s_rain_rtc.newest_tip_cml;
+    s_rain_rtc.oldest_tip_ts = s_rain_rtc.newest_tip_ts;
+    s_rain_rtc.newest_tip_cml = precip_cml;
+    s_rain_rtc.newest_tip_ts = now_sec;
+}
+
+static float get_precip_rate_locked(void)
+{
+    int64_t now_sec = esp_timer_get_time() / 1000000LL;
+
+    /* Case 1: Only one bucket tip event since initial/dry baseline */
+    if (s_rain_rtc.oldest_tip_ts != 0 && s_rain_rtc.newest_tip_ts == 0) {
+        int64_t elapsed_since_tip = now_sec - s_rain_rtc.oldest_tip_ts;
+        if (elapsed_since_tip >= WS_DATA_PRECIP_RATE_DECAY_TIMEOUT_SEC) {
+            return 0.0f;
+        }
+        float tip_delta = s_rain_rtc.oldest_tip_cml - s_rain_rtc.init_tip_cml;
+        if (tip_delta <= 0.0f || tip_delta > MAX_SINGLE_PACKET_PRECIP_DELTA_MM) {
+            tip_delta = 0.254f;
+        }
+        int64_t init_interval = (s_rain_rtc.oldest_tip_ts > s_rain_rtc.init_tip_ts)
+                                    ? (s_rain_rtc.oldest_tip_ts - s_rain_rtc.init_tip_ts)
+                                    : 0;
+        int64_t elapsed_sec = (init_interval > 0 && init_interval < WS_DATA_PRECIP_RATE_DECAY_TIMEOUT_SEC)
+                                  ? (init_interval + elapsed_since_tip)
+                                  : elapsed_since_tip;
+        int64_t effective_window = (elapsed_sec > 120) ? elapsed_sec : 120;
+        float rate = (3600.0f * tip_delta) / (float)effective_window;
+        if (!isfinite(rate) || rate < 0.0f) return 0.0f;
+        if (rate > MAX_VALID_PRECIP_RATE_MM_H) return MAX_VALID_PRECIP_RATE_MM_H;
+        return rate;
+    }
+
+    /* Case 2: Two or more bucket tip events */
+    if (s_rain_rtc.oldest_tip_ts != 0 && s_rain_rtc.newest_tip_ts != 0) {
+        if ((now_sec - s_rain_rtc.newest_tip_ts) >= WS_DATA_PRECIP_RATE_DECAY_TIMEOUT_SEC) {
+            return 0.0f;
+        }
+        float delta_cml = s_rain_rtc.newest_tip_cml - s_rain_rtc.oldest_tip_cml;
+        int64_t elapsed_sec = (s_rain_rtc.newest_tip_ts - s_rain_rtc.oldest_tip_ts) +
+                              (now_sec - s_rain_rtc.newest_tip_ts);
+        if (elapsed_sec <= 0) {
+            return 0.0f;
+        }
+        float rate = (3600.0f * delta_cml) / (float)elapsed_sec;
+        if (!isfinite(rate) || rate < 0.0f) return 0.0f;
+        if (rate > MAX_VALID_PRECIP_RATE_MM_H) return MAX_VALID_PRECIP_RATE_MM_H;
+        return rate;
+    }
+
+    return 0.0f;
+}
+
+static int32_t current_local_day_idx(void)
+{
+    time_t now = time(NULL);
+    if (now > 86400) {
+        int32_t tz_offset_sec = s_tz_offset_hours * 3600;
+        return (int32_t)((now + tz_offset_sec) / 86400);
+    }
+    return -1;
+}
+
+static void save_daily_precip_muse_nvs(void)
+{
+    if (s_rain_rtc.daily_current_day_idx < 0 || isnan(s_rain_rtc.daily_baseline_cml)) {
+        return;
+    }
+    daily_precip_nvs_blob_t blob = {
+        .magic = DAILY_PRECIP_NVS_MAGIC,
+        .day_idx = s_rain_rtc.daily_current_day_idx,
+        .station_id = s_rain_rtc.daily_station_id,
+        .baseline_cml = s_rain_rtc.daily_baseline_cml,
+        .accum_rollover = s_rain_rtc.daily_accum_rollover,
+        .cached = s_rain_rtc.daily_precip_cached,
+    };
+    nvs_handle_t h = 0;
+    if (nvs_open("wxm_weather", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "wx_daily", &blob, sizeof(blob));
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+static void update_daily_precip_locked(float cml_val, uint32_t pkt_sta_id)
+{
+    if (isnan(cml_val) || cml_val < 0.0f) {
+        return;
+    }
+
+    float prev_cached = s_rain_rtc.daily_precip_cached;
+    int32_t prev_day_idx = s_rain_rtc.daily_current_day_idx;
+    bool was_uninit = isnan(s_rain_rtc.daily_baseline_cml);
+
+    /* Guard against station ID change */
+    if (pkt_sta_id != 0 && s_rain_rtc.daily_station_id != 0 &&
+        pkt_sta_id != s_rain_rtc.daily_station_id) {
+        ESP_LOGW(TAG, "Station ID changed (0x%08lX -> 0x%08lX) — re-anchoring daily rain baseline to %.2f mm",
+                 (unsigned long)s_rain_rtc.daily_station_id, (unsigned long)pkt_sta_id, cml_val);
+        s_rain_rtc.daily_accum_rollover = s_rain_rtc.daily_precip_cached;
+        s_rain_rtc.daily_baseline_cml = cml_val;
+        s_rain_rtc.daily_station_id = pkt_sta_id;
+    } else if (pkt_sta_id != 0 && s_rain_rtc.daily_station_id == 0) {
+        s_rain_rtc.daily_station_id = pkt_sta_id;
+    }
+
+    int32_t day_idx = current_local_day_idx();
+    if (day_idx >= 0) {
+        if (s_rain_rtc.daily_current_day_idx == -1) {
+            s_rain_rtc.daily_current_day_idx = day_idx;
+            if (isnan(s_rain_rtc.daily_baseline_cml)) {
+                s_rain_rtc.daily_baseline_cml = cml_val;
+                s_rain_rtc.daily_accum_rollover = 0.0f;
+                s_rain_rtc.daily_precip_cached = 0.0f;
+                save_daily_precip_muse_nvs();
+                return;
+            }
+        } else if (s_rain_rtc.daily_current_day_idx != day_idx) {
+            /* Local midnight rollover */
+            ESP_LOGI(TAG, "Daily rain reset for new local day %ld (baseline=%.2f mm)",
+                     (long)day_idx, cml_val);
+            s_rain_rtc.daily_current_day_idx = day_idx;
+            s_rain_rtc.daily_baseline_cml = cml_val;
+            s_rain_rtc.daily_accum_rollover = 0.0f;
+            s_rain_rtc.daily_precip_cached = 0.0f;
+            save_daily_precip_muse_nvs();
+            return;
+        }
+    }
+
+    if (isnan(s_rain_rtc.daily_baseline_cml)) {
+        s_rain_rtc.daily_baseline_cml = cml_val;
+        s_rain_rtc.daily_accum_rollover = 0.0f;
+        s_rain_rtc.daily_precip_cached = 0.0f;
+        return;
+    }
+
+    if (cml_val >= s_rain_rtc.daily_baseline_cml) {
+        float new_delta = (cml_val - s_rain_rtc.daily_baseline_cml) -
+                          (s_rain_rtc.daily_precip_cached - s_rain_rtc.daily_accum_rollover);
+        if (new_delta > MAX_SINGLE_PACKET_PRECIP_DELTA_MM) {
+            s_rain_rtc.daily_accum_rollover = s_rain_rtc.daily_precip_cached;
+            s_rain_rtc.daily_baseline_cml = cml_val;
+        } else {
+            s_rain_rtc.daily_precip_cached =
+                (cml_val - s_rain_rtc.daily_baseline_cml) + s_rain_rtc.daily_accum_rollover;
+        }
+    } else {
+        /* Station rebooted or 16-bit counter wrapped */
+        s_rain_rtc.daily_accum_rollover = s_rain_rtc.daily_precip_cached + cml_val;
+        s_rain_rtc.daily_baseline_cml = cml_val;
+        s_rain_rtc.daily_precip_cached = s_rain_rtc.daily_accum_rollover;
+    }
+
+    if (was_uninit || prev_day_idx != s_rain_rtc.daily_current_day_idx ||
+        fabsf(s_rain_rtc.daily_precip_cached - prev_cached) >= 0.1f) {
+        save_daily_precip_muse_nvs();
+    }
+}
+
+static bool should_accept_station(uint32_t station_id, int16_t rssi)
+{
+    int64_t now_us = esp_timer_get_time();
+    if (s_paired_station_id != 0) {
+        if (station_id == s_paired_station_id) {
+            s_paired_station_last_seen_us = now_us;
+            return true;
+        }
+        /* If paired station is actively transmitting (seen within 180s), ignore neighbor stations */
+        if (s_paired_station_last_seen_us != 0 &&
+            (now_us - s_paired_station_last_seen_us) < 180LL * 1000000LL) {
+            return false;
+        }
+    }
+    if (s_state.outdoor_valid && s_state.station_id != 0 && s_state.station_id != station_id) {
+        /* Keep locked onto the current station while active (<120s), unless the new station
+         * is significantly closer/stronger (> 6 dB stronger RSSI). */
+        if ((now_us - s_state.outdoor_updated_us) < 120LL * 1000000LL &&
+            rssi <= (s_state.rssi_dbm + 6)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /* ── WS1001 & WS1300 Packet Decoders ─────────────────────────────────────── */
 
 static uint8_t ws1001_crc8(const uint8_t *buf, int len)
@@ -690,6 +996,12 @@ static bool ws1001_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
 
     uint32_t station_id = ((uint32_t)pl[3] << 24) | ((uint32_t)pl[4] << 16) |
                           ((uint32_t)pl[5] << 8) | pl[6];
+    if (!should_accept_station(station_id, rssi)) {
+        ESP_LOGD(TAG, "Ignoring neighbor WS1001[0x%08lX] (RSSI=%ddBm)",
+                 (unsigned long)station_id, rssi);
+        return true;
+    }
+
     uint32_t pkt_count = ((uint32_t)pl[7] << 8) | pl[8];
     uint8_t tx_power = pl[9] & 0x7F;
     uint16_t batt_mv = (uint16_t)(pl[11] * 20U);
@@ -720,9 +1032,20 @@ static bool ws1001_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
     float solar_rad = (float)illum_lux * 0.007892f;
 
     float uv_index = (float)pl[22] * 0.1f;
-    float rain_mm = (float)(((uint16_t)pl[23] << 8) | pl[24]) * 0.254f;
+    uint16_t rain_raw = ((uint16_t)pl[23] << 8) | pl[24];
+    float rain_cml_mm = (rain_raw != 0xFFFF) ? ((float)rain_raw * 0.254f) : NAN;
 
     xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+    s_ws1300_native_rate = false;
+    if (!isnan(rain_cml_mm)) {
+        update_precip_rate_params_locked(rain_cml_mm, station_id);
+        update_daily_precip_locked(rain_cml_mm, station_id);
+        s_state.rain_accum_mm = rain_cml_mm;
+    }
+    float rain_rate = get_precip_rate_locked();
+    float rain_daily = s_rain_rtc.daily_precip_cached;
+    s_state.rain_rate_mm_h = rain_rate;
+    s_state.rain_daily_mm = rain_daily;
     s_state.outdoor_valid = true;
     snprintf(s_state.station_model, sizeof(s_state.station_model), "WS1001");
     s_state.station_id = station_id;
@@ -733,7 +1056,6 @@ static bool ws1001_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
     s_state.wind_speed_ms = wind_speed;
     s_state.wind_gust_ms = wind_gust;
     s_state.wind_dir_deg = wind_dir;
-    s_state.rain_accum_mm = rain_mm;
     s_state.uv_index = uv_index;
     s_state.illuminance_lux = illum_lux;
     s_state.solar_rad_wm2 = solar_rad;
@@ -760,9 +1082,12 @@ static bool ws1001_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
     ack[7] = ws1001_checksum(ack, 7);
     sx1262_tx_packet(ack, sizeof(ack), freq_hz);
 
-    ESP_LOGI(TAG, "WS1001[0x%08lX] #%lu: T=%.1fC RH=%.1f%% Wind=%.1fm/s@%u° Rain=%.1fmm UV=%.1f RSSI=%ddBm",
+    ESP_LOGI(TAG,
+             "WS1001[0x%08lX] #%lu: T=%.1fC RH=%.1f%% Wind=%.1fm/s (Gust=%.1fm/s) @%u° "
+             "RainRate=%.1fmm/h Daily=%.1fmm (Cml=%.1fmm) UV=%.1f RSSI=%ddBm",
              (unsigned long)station_id, (unsigned long)pkt_count,
-             temp_c, hum_pct, wind_speed, wind_dir, rain_mm, uv_index, rssi);
+             temp_c, hum_pct, wind_speed, wind_gust, wind_dir,
+             rain_rate, rain_daily, rain_cml_mm, uv_index, rssi);
     return true;
 }
 
@@ -777,6 +1102,10 @@ static bool ws1300_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
 
     uint32_t station_id = ((uint32_t)pl[4] << 24) | ((uint32_t)pl[5] << 16) |
                           ((uint32_t)pl[6] << 8) | pl[7];
+    if (!should_accept_station(station_id, rssi)) {
+        return true;
+    }
+
     uint32_t pkt_id = ((uint32_t)pl[8] << 8) | pl[9];
     uint16_t batt_mv = (pl[13] != 0xFF) ? (uint16_t)(pl[13] * 20U) : 0;
     bool batt_low = (pl[14] & 0x04) != 0;
@@ -806,11 +1135,26 @@ static bool ws1300_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
         uint8_t b[4];
         float f;
     } precip_u = {.b = {pl[32], pl[31], pl[30], pl[29]}};
+    float rain_cml_mm = (isfinite(precip_u.f) && precip_u.f >= 0.0f) ? precip_u.f : NAN;
+    uint16_t pr_raw = ((uint16_t)pl[33] << 8) | pl[34];
 
     uint32_t illum_lux = ((uint32_t)pl[36] << 16) | ((uint32_t)pl[37] << 8) | pl[38];
     if (illum_lux == 0xFFFFFF) illum_lux = 0;
 
     xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+    if (!isnan(rain_cml_mm)) {
+        update_precip_rate_params_locked(rain_cml_mm, station_id);
+        update_daily_precip_locked(rain_cml_mm, station_id);
+        s_state.rain_accum_mm = rain_cml_mm;
+    }
+    if (pr_raw != 0xFFFF) {
+        s_ws1300_native_rate = true;
+        s_state.rain_rate_mm_h = (float)pr_raw / 10.0f;
+    } else {
+        s_ws1300_native_rate = false;
+        s_state.rain_rate_mm_h = get_precip_rate_locked();
+    }
+    s_state.rain_daily_mm = s_rain_rtc.daily_precip_cached;
     s_state.outdoor_valid = true;
     snprintf(s_state.station_model, sizeof(s_state.station_model), "WS1300");
     s_state.station_id = station_id;
@@ -821,7 +1165,6 @@ static bool ws1300_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
     s_state.wind_speed_ms = (ws_raw != 0xFFFF) ? (ws_raw / 10.0f) : 0.0f;
     s_state.wind_gust_ms = (wg_raw != 0xFFFF) ? (wg_raw / 10.0f) : 0.0f;
     s_state.wind_dir_deg = (wd_raw != 0xFFFF) ? wd_raw : 0;
-    s_state.rain_accum_mm = isfinite(precip_u.f) ? precip_u.f : 0.0f;
     s_state.uv_index = (pl[35] != 0xFF) ? (float)pl[35] : 0.0f;
     s_state.illuminance_lux = illum_lux;
     s_state.solar_rad_wm2 = (float)illum_lux * 0.007892f;
@@ -833,9 +1176,12 @@ static bool ws1300_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
     s_state.rx_packets_valid++;
     xSemaphoreGive(s_state_mutex);
 
-    ESP_LOGI(TAG, "WS1300[0x%08lX] #%lu: T=%.1fC RH=%.0f%% Wind=%.1fm/s RSSI=%ddBm",
+    ESP_LOGI(TAG,
+             "WS1300[0x%08lX] #%lu: T=%.1fC RH=%.0f%% Wind=%.1fm/s (Gust=%.1fm/s) "
+             "RainRate=%.1fmm/h Daily=%.1fmm RSSI=%ddBm",
              (unsigned long)station_id, (unsigned long)pkt_id,
-             temp_c, hum_pct, s_state.wind_speed_ms, rssi);
+             temp_c, hum_pct, s_state.wind_speed_ms, s_state.wind_gust_ms,
+             s_state.rain_rate_mm_h, s_state.rain_daily_mm, rssi);
     return true;
 }
 
@@ -921,7 +1267,63 @@ static void wg1200_weather_task(void *arg)
     }
 }
 
-/* ── Region Persistence & Init ───────────────────────────────────────────── */
+/* ── Region & Rain Baseline Persistence & Init ───────────────────────────── */
+
+static void init_rain_tracking_state(void)
+{
+    if (s_rain_rtc.magic == DAILY_PRECIP_NVS_MAGIC) {
+        ESP_LOGI(TAG, "Restored rain tracking from RTC RAM (day=%ld, sta=0x%08lX, baseline=%.2f, daily=%.2f mm)",
+                 (long)s_rain_rtc.daily_current_day_idx,
+                 (unsigned long)s_rain_rtc.daily_station_id,
+                 s_rain_rtc.daily_baseline_cml,
+                 s_rain_rtc.daily_precip_cached);
+        return;
+    }
+
+    memset(&s_rain_rtc, 0, sizeof(s_rain_rtc));
+    s_rain_rtc.magic = DAILY_PRECIP_NVS_MAGIC;
+    s_rain_rtc.daily_current_day_idx = -1;
+    s_rain_rtc.daily_baseline_cml = NAN;
+
+    /* Try restoring daily rain baseline from muse_nvs first, then factory WeatherXM NVS */
+    daily_precip_nvs_blob_t blob = {0};
+    size_t sz = sizeof(blob);
+    bool loaded = false;
+
+    nvs_handle_t h = 0;
+    if (nvs_open("wxm_weather", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_blob(h, "wx_daily", &blob, &sz) == ESP_OK &&
+            sz == sizeof(blob) && blob.magic == DAILY_PRECIP_NVS_MAGIC &&
+            !isnan(blob.baseline_cml) && blob.baseline_cml >= 0.0f) {
+            loaded = true;
+        }
+        nvs_close(h);
+    }
+
+    if (!loaded) {
+        nvs_handle_t fh = 0;
+        sz = sizeof(blob);
+        if (__real_nvs_open_from_partition("nvs", "settings", NVS_READONLY, &fh) == ESP_OK) {
+            if (nvs_get_blob(fh, "wx_daily", &blob, &sz) == ESP_OK &&
+                sz == sizeof(blob) && blob.magic == DAILY_PRECIP_NVS_MAGIC &&
+                !isnan(blob.baseline_cml) && blob.baseline_cml >= 0.0f) {
+                loaded = true;
+            }
+            nvs_close(fh);
+        }
+    }
+
+    if (loaded) {
+        s_rain_rtc.daily_current_day_idx = blob.day_idx;
+        s_rain_rtc.daily_station_id = blob.station_id;
+        s_rain_rtc.daily_baseline_cml = blob.baseline_cml;
+        s_rain_rtc.daily_accum_rollover = blob.accum_rollover;
+        s_rain_rtc.daily_precip_cached = blob.cached;
+        ESP_LOGI(TAG, "Restored daily rain from NVS (day=%ld, sta=0x%08lX, baseline=%.2f, daily=%.2f mm)",
+                 (long)blob.day_idx, (unsigned long)blob.station_id,
+                 blob.baseline_cml, blob.cached);
+    }
+}
 
 static void load_initial_region(void)
 {
@@ -939,10 +1341,10 @@ static void load_initial_region(void)
         nvs_close(h);
     }
 
-    /* 2. If not set in muse_nvs, inspect factory WeatherXM NVS ("nvs", namespace "settings") read-only */
-    if (!loaded_from_muse) {
-        nvs_handle_t fh = 0;
-        if (__real_nvs_open_from_partition("nvs", "settings", NVS_READONLY, &fh) == ESP_OK) {
+    /* 2. Inspect factory WeatherXM NVS ("nvs", namespace "settings") read-only for region, paired ws_id, tz_offset */
+    nvs_handle_t fh = 0;
+    if (__real_nvs_open_from_partition("nvs", "settings", NVS_READONLY, &fh) == ESP_OK) {
+        if (!loaded_from_muse) {
             char freq_str[16] = {0};
             size_t len = sizeof(freq_str);
             if (nvs_get_str(fh, "freq_name", freq_str, &len) == ESP_OK) {
@@ -956,8 +1358,26 @@ static void load_initial_region(void)
                 ESP_LOGI(TAG, "Inherited WeatherXM factory NVS freq_name='%s' -> %s",
                          freq_str, wg1200_weather_region_name(region));
             }
-            nvs_close(fh);
         }
+
+        int64_t ws_id = -1;
+        if (nvs_get_i64(fh, "ws_id", &ws_id) != ESP_OK || ws_id <= 0) {
+            (void)nvs_get_i64(fh, "c_ws_id", &ws_id);
+        }
+        if (ws_id > 0 && ws_id <= 0xFFFFFFFFLL) {
+            s_paired_station_id = (uint32_t)ws_id;
+            ESP_LOGI(TAG, "Inherited WeatherXM paired station ID: 0x%08lX",
+                     (unsigned long)s_paired_station_id);
+        }
+
+        uint32_t tz_u32 = 0;
+        if (nvs_get_u32(fh, "tz_offset", &tz_u32) == ESP_OK) {
+            int32_t tz_i32 = (int32_t)tz_u32;
+            if (tz_i32 >= -12 && tz_i32 <= 14) {
+                s_tz_offset_hours = tz_i32;
+            }
+        }
+        nvs_close(fh);
     }
 
     s_state.region = region;
@@ -971,6 +1391,7 @@ esp_err_t wg1200_weather_init(void)
     }
 
     load_initial_region();
+    init_rain_tracking_state();
 
     esp_err_t bmp_err = bmp390_init_hw();
     if (bmp_err == ESP_OK) {
@@ -1005,6 +1426,9 @@ void wg1200_weather_get_state(wg1200_weather_state_t *out)
         return;
     }
     xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+    if (s_state.outdoor_valid && !s_ws1300_native_rate) {
+        s_state.rain_rate_mm_h = get_precip_rate_locked();
+    }
     *out = s_state;
     xSemaphoreGive(s_state_mutex);
 }
@@ -1057,21 +1481,24 @@ cJSON *wg1200_weather_sensors_command(void)
     cJSON *payload = cJSON_CreateObject();
     if (st.bmp390_valid) {
         double age_s = (double)(now_us - st.indoor_updated_us) / 1e6;
-        add_sensor_metric(payload, "indoor_temperature", st.indoor_temp_c, "C", age_s);
-        add_sensor_metric(payload, "indoor_pressure", st.indoor_pressure_hpa, "hPa", age_s);
-        /* Also provide standard "temperature" & "pressure" keys for generic callers */
-        add_sensor_metric(payload, "temperature", st.outdoor_valid ? st.outdoor_temp_c : st.indoor_temp_c, "C", age_s);
+        /* Note: BMP390 sits inside the WG1200 enclosure behind the 480x480 LCD,
+         * so its temperature reflects gateway PCB/enclosure heat rather than ambient room air. */
+        add_sensor_metric(payload, "gateway_temperature", st.indoor_temp_c, "C", age_s);
+        add_sensor_metric(payload, "barometric_pressure", st.indoor_pressure_hpa, "hPa", age_s);
         add_sensor_metric(payload, "pressure", st.indoor_pressure_hpa, "hPa", age_s);
     }
 
     if (st.outdoor_valid) {
         double age_s = (double)(now_us - st.outdoor_updated_us) / 1e6;
         add_sensor_metric(payload, "outdoor_temperature", st.outdoor_temp_c, "C", age_s);
+        add_sensor_metric(payload, "temperature", st.outdoor_temp_c, "C", age_s);
         add_sensor_metric(payload, "outdoor_humidity", st.outdoor_humidity_pct, "%", age_s);
         add_sensor_metric(payload, "humidity", st.outdoor_humidity_pct, "%", age_s);
         add_sensor_metric(payload, "wind_speed", st.wind_speed_ms, "m/s", age_s);
         add_sensor_metric(payload, "wind_gust", st.wind_gust_ms, "m/s", age_s);
         add_sensor_metric(payload, "wind_direction", st.wind_dir_deg, "deg", age_s);
+        add_sensor_metric(payload, "rain_rate", st.rain_rate_mm_h, "mm/h", age_s);
+        add_sensor_metric(payload, "rain_daily", st.rain_daily_mm, "mm", age_s);
         add_sensor_metric(payload, "rain_accumulated", st.rain_accum_mm, "mm", age_s);
         add_sensor_metric(payload, "uv_index", st.uv_index, "UVI", age_s);
         add_sensor_metric(payload, "illuminance", st.illuminance_lux, "lx", age_s);

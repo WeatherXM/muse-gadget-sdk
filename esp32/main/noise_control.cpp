@@ -1320,6 +1320,15 @@ static cJSON *string_param(const char *description) {
     return param;
 }
 
+static cJSON *int_param(const char *description) {
+    cJSON *param = cJSON_CreateObject();
+    cJSON_AddStringToObject(param, "type", "integer");
+    if (description) {
+        cJSON_AddStringToObject(param, "description", description);
+    }
+    return param;
+}
+
 #if CONFIG_HOMEHUB_DISPLAY_COMMANDS
 // The optional `row` of display.draw_url and display.draw_file.
 static cJSON *row_params(void) {
@@ -1525,6 +1534,47 @@ static char *build_register_json(void) {
                 "in seconds; a sensor with no recent reading is null.",
                 nullptr, nullptr);
 #endif
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    add_command(commands, "sensors.read",
+                "Read the WeatherXM WG1200 barometer (BMP390) and outdoor "
+                "(WS1001/WS1300 LoRa P2P) weather station sensors: "
+                "gateway_temperature (C, internal PCB/enclosure temp warmed by LCD), "
+                "barometric_pressure (hPa), "
+                "outdoor_temperature (C), outdoor_humidity (%), "
+                "wind_speed (m/s), wind_gust (m/s), wind_direction (deg), "
+                "rain_rate (mm/h), rain_daily (mm), rain_accumulated (mm), "
+                "uv_index (UVI), illuminance (lx), "
+                "solar_irradiance (W/m2), station_battery (mV), "
+                "lora_rssi (dBm), lora_snr (dB), each with age_s, plus "
+                "lora_radio metadata.",
+                nullptr, nullptr);
+    {
+        cJSON *boot_wxm_optional = cJSON_CreateObject();
+        cJSON_AddItemToObject(boot_wxm_optional, "slot",
+                              string_param("Target partition to boot: 'ota_0' (default) or 'factory'."));
+        add_command(commands, "device.boot_weatherxm",
+                    "Switch the active boot partition back to stock WeatherXM OS "
+                    "('ota_0' or 'factory') and reboot the WG1200 gateway.",
+                    nullptr, boot_wxm_optional);
+    }
+    {
+        cJSON *notify_required = cJSON_CreateObject();
+        cJSON_AddItemToObject(notify_required, "message",
+                              string_param("Text to display on the 480x480 screen."));
+        cJSON *notify_optional = cJSON_CreateObject();
+        cJSON_AddItemToObject(notify_optional, "title",
+                              string_param("Header/title for the card (e.g. 'Wind Alert' or 'Morning Brief')."));
+        cJSON_AddItemToObject(notify_optional, "beep_ms",
+                              int_param("Buzzer duration in ms (0-1000, default 120; 0 for silent)."));
+        cJSON_AddItemToObject(notify_optional, "duration_s",
+                              int_param("Seconds to keep the notification overlay visible before returning "
+                                        "to the avatar/weather view (0 = until tapped, default 30)."));
+        add_command(commands, "wg1200.notify",
+                    "Show a notification card overlay on the WG1200 480x480 touchscreen "
+                    "and optionally beep the built-in passive buzzer.",
+                    notify_required, notify_optional);
+    }
+#endif
 
 #if CONFIG_MUSE_WATCHER_CAMERA
     add_command(commands, "camera.capture",
@@ -1563,7 +1613,7 @@ static char *build_register_json(void) {
     // heap. Right after the handshake there is often not that much, so print
     // into one buffer sized to fit instead.
     char *json = nullptr;
-    for (int size = 2048; size <= 8192 && !json; size += 512) {
+    for (int size = 2048; size <= 16384 && !json; size += 512) {
         json = (char *)malloc(size);
         if (!json) break;
         if (!cJSON_PrintPreallocated(root, json, size, false)) {

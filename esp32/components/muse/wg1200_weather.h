@@ -50,6 +50,8 @@ typedef struct {
     float wind_speed_ms;
     float wind_gust_ms;
     uint16_t wind_dir_deg;
+    float rain_rate_mm_h;
+    float rain_daily_mm;
     float rain_accum_mm;
     float uv_index;
     uint32_t illuminance_lux;

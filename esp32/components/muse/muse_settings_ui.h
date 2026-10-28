@@ -36,4 +36,5 @@ bool muse_settings_ui_in_subpage(void);
 
 #if CONFIG_MUSE_BOARD_WXM_WG1200
 void muse_settings_ui_open_wg1200_page(const char *name);
+void muse_settings_ui_trigger_wg1200_weather_card(void);
 #endif

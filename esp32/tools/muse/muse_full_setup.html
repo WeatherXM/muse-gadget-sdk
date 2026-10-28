@@ -1,0 +1,1825 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meta Muse ESP32 — Full Web Bluetooth Provisioner (Home Link + Companion)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f0e0d;
+      --panel: #181614;
+      --panel-alt: #201d1a;
+      --border: #2e2a26;
+      --border-strong: #453f39;
+      --fg: #f3efe8;
+      --muted: #a59d93;
+      --accent: #e07a3a;
+      --accent-hover: #ee8b4c;
+      --ok: #5ec269;
+      --ok-bg: rgba(94, 194, 105, 0.14);
+      --warn: #f0b44c;
+      --warn-bg: rgba(240, 180, 76, 0.15);
+      --err: #ee6055;
+      --err-bg: rgba(238, 96, 85, 0.15);
+      --focus: #68a8ff;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px 16px 64px;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--sans);
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin: 0 0 4px;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-family: var(--mono);
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .badge.ok {
+      color: var(--ok);
+      background: var(--ok-bg);
+      border-color: rgba(94, 194, 105, 0.4);
+    }
+
+    .badge.warn {
+      color: var(--warn);
+      background: var(--warn-bg);
+      border-color: rgba(240, 180, 76, 0.4);
+    }
+
+    .badge.err {
+      color: var(--err);
+      background: var(--err-bg);
+      border-color: rgba(238, 96, 85, 0.4);
+    }
+
+    .banner {
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      font-size: 0.92rem;
+    }
+
+    .banner.confirm-alert {
+      display: none;
+      background: rgba(224, 122, 58, 0.18);
+      border: 2px solid var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1.02rem;
+      animation: pulse-border 1.2s infinite alternate;
+    }
+
+    .banner.confirm-alert.active {
+      display: block;
+    }
+
+    @keyframes pulse-border {
+      from { box-shadow: 0 0 0 0 rgba(224, 122, 58, 0.35); }
+      to { box-shadow: 0 0 0 8px rgba(224, 122, 58, 0); }
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    fieldset {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      margin: 0 0 18px;
+      min-width: 0;
+    }
+
+    legend {
+      padding: 0 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 0.84rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--fg);
+    }
+
+    .hint {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="url"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 9px 11px;
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 0.86rem;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 62px;
+    }
+
+    input:focus-visible,
+    textarea:focus-visible,
+    select:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-row > input {
+      flex: 1;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: center;
+    }
+
+    button {
+      padding: 9px 15px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background: var(--panel-alt);
+      color: var(--fg);
+      font-family: var(--sans);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    }
+
+    button:hover:not(:disabled) {
+      background: #2b2723;
+      border-color: #5b534b;
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #130d09;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    button.success {
+      background: var(--ok);
+      border-color: var(--ok);
+      color: #09180b;
+    }
+
+    button.danger {
+      background: transparent;
+      border-color: rgba(238, 96, 85, 0.55);
+      color: var(--err);
+    }
+
+    button.small {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .status-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+    }
+
+    .status-table th,
+    .status-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .status-table th {
+      color: var(--muted);
+      font-weight: 500;
+      width: 155px;
+    }
+
+    .steps-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .step-pill {
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    .step-pill.active {
+      border-color: var(--accent);
+      color: var(--fg);
+      background: rgba(224, 122, 58, 0.12);
+    }
+
+    .step-pill.done {
+      border-color: rgba(94, 194, 105, 0.5);
+      color: var(--ok);
+      background: var(--ok-bg);
+    }
+
+    .step-pill.error {
+      border-color: rgba(238, 96, 85, 0.5);
+      color: var(--err);
+      background: var(--err-bg);
+    }
+
+    #logOutput {
+      background: #090807;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      max-height: 360px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+    }
+
+    .log-info { color: #d8d2c9; }
+    .log-ok { color: var(--ok); }
+    .log-warn { color: var(--warn); }
+    .log-err { color: var(--err); }
+    .log-ble { color: #78b6ff; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: var(--bg);
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      font-size: 0.83rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Meta Muse ESP32 — Full Web Bluetooth Provisioner</h1>
+        <p class="subtitle">
+          Unified setup for <strong>Subsystem B (Home Link <code>provision_v2</code>)</strong> +
+          <strong>Subsystem A (Companion <code>muse_ble</code>)</strong>
+        </p>
+      </div>
+      <div class="badges">
+        <span id="proxyBadge" class="badge">Proxy: checking...</span>
+        <span id="cryptoBadge" class="badge">Crypto v5: testing...</span>
+        <span id="bleBadge" class="badge">BLE: disconnected</span>
+      </div>
+    </header>
+
+    <div id="confirmBanner" class="banner confirm-alert" role="alert" aria-live="assertive">
+      ACTION REQUIRED ON ESP32: Tap "Confirm" or press the button on your WG1200 screen now! (60s timeout)
+    </div>
+
+    <!-- STEP 1: BLE CONNECTION & LIVE TELEMETRY -->
+    <fieldset>
+      <legend>1. Connect to ESP32 over Web Bluetooth (&amp; Optional USB Serial SDK Token)</legend>
+      <div class="btn-row" style="margin-top: 0; margin-bottom: 14px;">
+        <button type="button" id="btnConnectBle" class="primary">Connect ESP32 via Web Bluetooth</button>
+        <button type="button" id="btnDisconnectBle" disabled>Disconnect</button>
+        <button type="button" id="btnRefreshInfo" class="small" disabled>Refresh Device Info</button>
+        <label class="checkbox-label" for="chkAcceptAll">
+          <input type="checkbox" id="chkAcceptAll" name="accept_all">
+          Show all BLE devices (if name prefix not matched)
+        </label>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <table class="status-table" aria-label="Home Link Service Status">
+            <tbody>
+              <tr><th>BLE Device</th><td id="stBleName">—</td></tr>
+              <tr><th>Home Link Service</th><td id="stHomeLinkSvc">Not connected</td></tr>
+              <tr><th>Node ID (<code>device_id</code>)</th><td id="stNodeId">—</td></tr>
+              <tr><th>Full Device ID</th><td id="stFullDeviceId">—</td></tr>
+              <tr><th>Firmware / Auth</th><td id="stFwAuth">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <table class="status-table" aria-label="Muse Companion Service Status">
+            <tbody>
+              <tr><th>Companion Service</th><td id="stMuseBleSvc">Not connected</td></tr>
+              <tr><th>Wi-Fi State</th><td id="stWifiState">—</td></tr>
+              <tr><th>Home Link Linked?</th><td id="stLinkState">—</td></tr>
+              <tr><th>Hatch VM Status</th><td id="stHatchState">—</td></tr>
+              <tr><th>Last BLE Reply</th><td id="stLastReply">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- STEP 2: CREDENTIALS & TOKEN MINTING -->
+    <form id="provisionForm" method="POST" action="/api/mint" novalidate>
+      <div class="grid-2">
+        <fieldset>
+          <legend>2A. Wi-Fi &amp; SDK Token Configuration</legend>
+
+          <div class="field">
+            <label for="wifiSsid">Wi-Fi SSID (2.4 GHz required for ESP32-S3)</label>
+            <input
+              type="text"
+              id="wifiSsid"
+              name="wifi_ssid"
+              required
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="Your 2.4 GHz Wi-Fi network name"
+            >
+          </div>
+
+          <div class="field">
+            <label for="wifiPass">Wi-Fi Password</label>
+            <div class="input-row">
+              <input
+                type="password"
+                id="wifiPass"
+                name="wifi_pass"
+                required
+                autocomplete="current-password"
+                placeholder="Wi-Fi password"
+              >
+              <button type="button" id="btnToggleWifiPass" class="small" aria-pressed="false">Show</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="sdkToken">SDK Token (<code>mgst_...</code>, 48 chars)</label>
+            <div class="input-row">
+              <input
+                type="text"
+                id="sdkToken"
+                name="sdk_token"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="mgst_..."
+                aria-describedby="sdkTokenHint"
+              >
+              <button type="button" id="btnSerialSdkToken" class="small" title="Send >sdk_token=mgst_... over USB Serial (115200 baud)">
+                Write via USB Serial
+              </button>
+            </div>
+            <span id="sdkTokenHint" class="hint">
+              Create at <code>https://gadgets.muse.ai/settings/sdk-tokens</code>. Also auto-filled if the ESP32 already has one stored in NVS.
+            </span>
+          </div>
+
+          <div class="field">
+            <label for="nodeId">Node ID (<code>homelink-xxxxxx</code>)</label>
+            <input
+              type="text"
+              id="nodeId"
+              name="device_id"
+              required
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="homelink-xxxxxx (auto-filled on BLE connect)"
+              aria-describedby="nodeIdHint"
+            >
+            <span id="nodeIdHint" class="hint">
+              Lowercase <code>homelink-xxxxxx</code> from BLE name <code>MuseGadget-XXXXXX</code>. Sent as <code>device_id</code> to <code>/device_token/mint</code>.
+            </span>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>2B. Muse VM &amp; 365-Day Device Token Minting</legend>
+
+          <div class="field">
+            <label for="vmId">Assigned Muse VM ID</label>
+            <input
+              type="text"
+              id="vmId"
+              name="vm_id"
+              required
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              value="90c04dab-dd50-4558-ac49-d42496d66171"
+            >
+          </div>
+
+          <div class="field">
+            <label for="hatchHost">Muse Host URL</label>
+            <input
+              type="url"
+              id="hatchHost"
+              name="hatch_host"
+              required
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              value="https://muse.ai"
+            >
+          </div>
+
+          <div class="field">
+            <label for="webToken">Web User Access Token (from <code>https://muse.ai/api/auth/check</code>)</label>
+            <textarea
+              id="webToken"
+              name="web_token"
+              rows="2"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="Paste web access_token (s0:... or eyJ...) to mint a 365-day device token pair"
+              aria-describedby="webTokenHint"
+            ></textarea>
+            <span id="webTokenHint" class="hint">
+              In your logged-in <code>https://muse.ai</code> tab DevTools Console, run the helper snippet below to copy your web token.
+            </span>
+            <div class="btn-row" style="margin-top: 6px;">
+              <button type="button" id="btnCopyConsoleCmd" class="small">Copy DevTools Token Snippet</button>
+              <button type="submit" id="btnMintTokens" class="small">Mint 365-Day Device Tokens Now</button>
+              <button type="button" id="btnVerifyVms" class="small">Verify Token (/fetch_vms)</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="deviceAccessToken">Minted Device <code>access_token</code> (365-day)</label>
+            <input
+              type="text"
+              id="deviceAccessToken"
+              name="device_access_token"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="Auto-populated by Mint (or paste existing device access_token)"
+            >
+          </div>
+
+          <div class="field">
+            <label for="deviceRefreshToken">Minted Device <code>refresh_token</code> (365-day)</label>
+            <input
+              type="text"
+              id="deviceRefreshToken"
+              name="device_refresh_token"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="Auto-populated by Mint (or paste existing device refresh_token)"
+            >
+          </div>
+        </fieldset>
+      </div>
+    </form>
+
+    <!-- STEP 3: ONE-CLICK PROVISIONING & CONTROLS -->
+    <fieldset>
+      <legend>3. One-Click Full Provisioning (Home Link <code>provision_v2</code> + Companion <code>muse_ble</code>)</legend>
+
+      <div class="steps-bar" aria-live="polite">
+        <div id="step1" class="step-pill">1. ECDH Hello</div>
+        <div id="step2" class="step-pill">2. Key Derive</div>
+        <div id="step3" class="step-pill">3. Device Confirm</div>
+        <div id="step4" class="step-pill">4. Mint Token</div>
+        <div id="step5" class="step-pill">5. Companion Setup</div>
+        <div id="step6" class="step-pill">6. provision_v2</div>
+        <div id="step7" class="step-pill">7. Wi-Fi &amp; Auth OK</div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" id="btnFullProvision" class="primary" disabled>
+          1-Click Full Provision (Home Link + Companion)
+        </button>
+        <button type="button" id="btnHomeLinkOnly" disabled>
+          Home Link (provision_v2) Only
+        </button>
+        <button type="button" id="btnCompanionOnly" disabled>
+          Companion (muse_ble) Setup Only
+        </button>
+        <button type="button" id="btnHatchTest" class="small" disabled>
+          Test VM Connection (hatch.test)
+        </button>
+        <button type="button" id="btnUnpair" class="danger small" disabled>
+          Unpair / Reset Home Link
+        </button>
+      </div>
+    </fieldset>
+
+    <!-- LIVE LOG -->
+    <fieldset>
+      <legend>Live Protocol &amp; Crypto Log</legend>
+      <div class="btn-row" style="margin-top: 0; margin-bottom: 8px;">
+        <button type="button" id="btnClearLog" class="small">Clear Log</button>
+      </div>
+      <pre id="logOutput" aria-live="polite"></pre>
+    </fieldset>
+  </main>
+
+  <script>
+    "use strict";
+
+    // =========================================================================
+    // 1. Constants & UUIDs (Exact match with esp32/main/ble_server.c & muse_ble.c)
+    // =========================================================================
+    const HOMELINK_SVC_UUID = "7fdd3d1c-38ea-46cf-8b46-314ecf5f240c";
+    const HOMELINK_RX_UUID  = "4d593029-28a2-4a6e-a1f0-3c2d5e8f9b01"; // Write / WriteWithoutResponse
+    const HOMELINK_TX_UUID  = "d75dc4ca-7b2b-4e9c-8f0a-1d2e3f4a5b6c"; // Read / Notify
+
+    const MUSE_BLE_SVC_UUID = "4d757365-0001-4000-8000-6a6f6c6c7900";
+    const MUSE_BLE_CMD_UUID = "4d757365-0002-4000-8000-6a6f6c6c7900"; // Write
+    const MUSE_BLE_RSP_UUID = "4d757365-0003-4000-8000-6a6f6c6c7900"; // Read / Notify
+
+    const CHUNK_MAGIC = 0xFE;
+    const TX_CHUNK_PAYLOAD_MAX = 160; // Safe within macOS 185+ ATT MTU and <= 16 chunks
+
+    const SDK_TOKEN_REGEX = /^mgst_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
+
+    // =========================================================================
+    // 2. UI Elements & Logging
+    // =========================================================================
+    const el = (id) => document.getElementById(id);
+
+    function log(msg, cls = "log-info") {
+      const out = el("logOutput");
+      const ts = new Date().toLocaleTimeString("en-GB", { hour12: false });
+      const line = document.createElement("div");
+      line.className = cls;
+      line.textContent = `[${ts}] ${msg}`;
+      out.appendChild(line);
+      out.scrollTop = out.scrollHeight;
+    }
+
+    function setStepState(stepNum, state) {
+      const pill = el(`step${stepNum}`);
+      if (!pill) return;
+      pill.classList.remove("active", "done", "error");
+      if (state) pill.classList.add(state);
+    }
+
+    function resetSteps() {
+      for (let i = 1; i <= 7; i++) setStepState(i, "");
+    }
+
+    function showConfirmBanner(active, text) {
+      const banner = el("confirmBanner");
+      if (text) banner.textContent = text;
+      banner.classList.toggle("active", Boolean(active));
+    }
+
+    // =========================================================================
+    // 3. Base64url & Byte Helpers
+    // =========================================================================
+    function b64urlEncode(bytes) {
+      const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      let bin = "";
+      for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+      return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+
+    function b64urlDecode(str) {
+      let s = String(str).trim().replace(/-/g, "+").replace(/_/g, "/");
+      while (s.length % 4) s += "=";
+      const bin = atob(s);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+
+    function concatBytes(...arrays) {
+      const total = arrays.reduce((acc, a) => acc + a.length, 0);
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const a of arrays) {
+        out.set(a, offset);
+        offset += a.length;
+      }
+      return out;
+    }
+
+    const utf8Encode = (s) => new TextEncoder().encode(s);
+    const utf8Decode = (b) => new TextDecoder().decode(b);
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    // =========================================================================
+    // 4. Home Link v5 Cryptography (P-256 ECDH + HKDF-SHA256 + AES-256-GCM)
+    //    Matches esp32/main/link_pairing.c & esp32/main/pairing_transcript.c
+    // =========================================================================
+    async function sha256(bytes) {
+      return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    }
+
+    async function hmacSha256(keyBytes, dataBytes) {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        keyBytes,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      return new Uint8Array(await crypto.subtle.sign("HMAC", key, dataBytes));
+    }
+
+    async function hkdfExpand32(prkBytes, infoStr) {
+      const infoBytes = utf8Encode(infoStr);
+      const input = concatBytes(infoBytes, new Uint8Array([0x01]));
+      return hmacSha256(prkBytes, input);
+    }
+
+    function buildTranscriptV5(fields) {
+      return [
+        "hatch-link-pairing-v5",
+        `version=${fields.version}`,
+        "initiator_role=mobile",
+        "responder_role=link",
+        `device_id=${fields.device_id}`,
+        `node_id=${fields.node_id}`,
+        `mac=${fields.mac}`,
+        `model=${fields.model}`,
+        `firmware_version=${fields.firmware_version}`,
+        "selected_cipher_suite=p256-hkdf-sha256-aes-gcm-v1",
+        `pairing_auth=${fields.pairing_auth}`,
+        `pairing_auth_epoch=${fields.pairing_auth_epoch}`,
+        `pairing_policy=${fields.pairing_policy}`,
+        "confirm_timeout_seconds=60",
+        `mobile_pub=${fields.mobile_pub}`,
+        `device_pub=${fields.device_pub}`,
+        `mobile_nonce=${fields.mobile_nonce}`,
+        `device_nonce=${fields.device_nonce}`,
+        "",
+      ].join("\n");
+    }
+
+    function makeGcmNonce(direction, counterBigInt) {
+      const iv = new Uint8Array(12);
+      iv[0] = direction & 0xff; // 0 = m2d, 1 = d2m
+      const dv = new DataView(iv.buffer);
+      dv.setBigUint64(4, BigInt(counterBigInt), false); // big-endian at bytes 4..11
+      return iv;
+    }
+
+    function makeGcmAad(sessionIdB64, direction, counterBigInt) {
+      const dirLabel = direction === 0 ? "m2d" : "d2m";
+      return utf8Encode(`hatch-link ble setup v1|${sessionIdB64}|${dirLabel}|${counterBigInt.toString()}`);
+    }
+
+    async function deriveSessionKeys({
+      mobileKeyPair,
+      mobileNonceBytes,
+      devicePubB64,
+      deviceNonceB64,
+      transcriptHashBytes,
+    }) {
+      const devicePubRaw = b64urlDecode(devicePubB64);
+      const deviceNonceBytes = b64urlDecode(deviceNonceB64);
+
+      const devicePubKey = await crypto.subtle.importKey(
+        "raw",
+        devicePubRaw,
+        { name: "ECDH", namedCurve: "P-256" },
+        false,
+        []
+      );
+
+      const ecdhSecret = new Uint8Array(
+        await crypto.subtle.deriveBits(
+          { name: "ECDH", public: devicePubKey },
+          mobileKeyPair.privateKey,
+          256
+        )
+      );
+
+      const saltInput = concatBytes(mobileNonceBytes, deviceNonceBytes, transcriptHashBytes);
+      const salt = await sha256(saltInput);
+      const prk = await hmacSha256(salt, ecdhSecret);
+      const sessionSecret = await hkdfExpand32(prk, "hatch-link ble setup v1");
+      const rxKeyBytes = await hkdfExpand32(sessionSecret, "mobile->device"); // m2d
+      const txKeyBytes = await hkdfExpand32(sessionSecret, "device->mobile"); // d2m
+
+      const sidInput = concatBytes(
+        utf8Encode("hatch-link session id v1"),
+        transcriptHashBytes,
+        ecdhSecret
+      );
+      const sidHash = await sha256(sidInput);
+      const sessionIdBytes = sidHash.slice(0, 16);
+      const sessionIdB64 = b64urlEncode(sessionIdBytes);
+
+      const rxCryptoKey = await crypto.subtle.importKey(
+        "raw",
+        rxKeyBytes,
+        { name: "AES-GCM" },
+        false,
+        ["encrypt", "decrypt"]
+      );
+      const txCryptoKey = await crypto.subtle.importKey(
+        "raw",
+        txKeyBytes,
+        { name: "AES-GCM" },
+        false,
+        ["encrypt", "decrypt"]
+      );
+
+      return {
+        sessionIdB64,
+        rxCryptoKey, // m2d (direction 0)
+        txCryptoKey, // d2m (direction 1)
+        txCounter: 0n,
+        rxCounter: 0n,
+      };
+    }
+
+    async function encryptM2D(session, plaintextObjOrStr) {
+      const plaintext =
+        typeof plaintextObjOrStr === "string"
+          ? plaintextObjOrStr
+          : JSON.stringify(plaintextObjOrStr);
+      const counter = session.txCounter;
+      const iv = makeGcmNonce(0, counter);
+      const aad = makeGcmAad(session.sessionIdB64, 0, counter);
+      const sealed = new Uint8Array(
+        await crypto.subtle.encrypt(
+          { name: "AES-GCM", iv, additionalData: aad, tagLength: 128 },
+          session.rxCryptoKey,
+          utf8Encode(plaintext)
+        )
+      );
+      session.txCounter += 1n;
+      const ciphertext = sealed.slice(0, sealed.length - 16);
+      const tag = sealed.slice(sealed.length - 16);
+      return JSON.stringify({
+        action: "pairing_encrypted",
+        session_id: session.sessionIdB64,
+        counter: counter.toString(),
+        ciphertext: b64urlEncode(ciphertext),
+        tag: b64urlEncode(tag),
+      });
+    }
+
+    async function decryptD2M(session, envMsg) {
+      if (envMsg.session_id !== session.sessionIdB64) {
+        throw new Error(`Session ID mismatch: got ${envMsg.session_id}`);
+      }
+      const counter = BigInt(envMsg.counter);
+      if (counter !== session.rxCounter) {
+        throw new Error(`Unexpected d2m counter: got ${counter}, expected ${session.rxCounter}`);
+      }
+      const iv = makeGcmNonce(1, counter);
+      const aad = makeGcmAad(session.sessionIdB64, 1, counter);
+      const ct = b64urlDecode(envMsg.ciphertext);
+      const tag = b64urlDecode(envMsg.tag);
+      const combined = concatBytes(ct, tag);
+      const ptBuf = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv, additionalData: aad, tagLength: 128 },
+        session.txCryptoKey,
+        combined
+      );
+      session.rxCounter += 1n;
+      return utf8Decode(new Uint8Array(ptBuf));
+    }
+
+    // Self-test on startup to verify browser WebCrypto P-256 + HKDF + AES-GCM
+    async function runCryptoSelfTest() {
+      const badge = el("cryptoBadge");
+      try {
+        const mobileKP = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+        const deviceKP = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+        const mPub = b64urlEncode(await crypto.subtle.exportKey("raw", mobileKP.publicKey));
+        const dPub = b64urlEncode(await crypto.subtle.exportKey("raw", deviceKP.publicKey));
+        const mNonce = crypto.getRandomValues(new Uint8Array(16));
+        const dNonce = crypto.getRandomValues(new Uint8Array(16));
+
+        const transcript = buildTranscriptV5({
+          version: 5,
+          device_id: "hatch-link:aa:bb:cc:dd:ee:ff",
+          node_id: "homelink-ddeeff",
+          mac: "aa:bb:cc:dd:ee:ff",
+          model: "hatch_link",
+          firmware_version: "1.0.0",
+          pairing_auth: "none",
+          pairing_auth_epoch: 0,
+          pairing_policy: "confirm_press",
+          mobile_pub: mPub,
+          device_pub: dPub,
+          mobile_nonce: b64urlEncode(mNonce),
+          device_nonce: b64urlEncode(dNonce),
+        });
+        const tHash = await sha256(utf8Encode(transcript));
+        const session = await deriveSessionKeys({
+          mobileKeyPair: mobileKP,
+          mobileNonceBytes: mNonce,
+          devicePubB64: dPub,
+          deviceNonceB64: b64urlEncode(dNonce),
+          transcriptHashBytes: tHash,
+        });
+        const envJson = await encryptM2D(session, '{"action":"pairing_client_finished"}');
+        const env = JSON.parse(envJson);
+        if (!env.ciphertext || !env.tag || session.txCounter !== 1n) {
+          throw new Error("Envelope check failed");
+        }
+        badge.textContent = "Crypto v5: PASS";
+        badge.className = "badge ok";
+      } catch (err) {
+        badge.textContent = "Crypto v5: FAIL";
+        badge.className = "badge err";
+        log(`Crypto v5 self-test failed: ${err.message}`, "log-err");
+      }
+    }
+
+    // =========================================================================
+    // 5. BLE State & Framing (Home Link + Muse Companion)
+    // =========================================================================
+    let bleDevice = null;
+    let gattServer = null;
+
+    // Subsystem B: Home Link
+    let hlRxChar = null;
+    let hlTxChar = null;
+    let hlChunkBuf = [];
+    let hlExpectedChunks = 0;
+    let lastDeviceInfo = null;
+    let activePairingSession = null;
+    let hlMessageWaiters = [];
+
+    // Subsystem A: Muse Companion
+    let museCmdChar = null;
+    let museRspChar = null;
+
+    function notifyHlWaiters(msgObjOrStr) {
+      const waiters = hlMessageWaiters.slice();
+      for (const w of waiters) {
+        if (w.predicate(msgObjOrStr)) {
+          hlMessageWaiters = hlMessageWaiters.filter((item) => item !== w);
+          clearTimeout(w.timer);
+          w.resolve(msgObjOrStr);
+        }
+      }
+    }
+
+    function waitForHlMessage(predicate, timeoutMs = 15000, label = "BLE message") {
+      return new Promise((resolve, reject) => {
+        const waiter = {
+          predicate,
+          resolve,
+          timer: setTimeout(() => {
+            hlMessageWaiters = hlMessageWaiters.filter((item) => item !== waiter);
+            reject(new Error(`Timed out waiting for ${label} (${timeoutMs}ms)`));
+          }, timeoutMs),
+        };
+        hlMessageWaiters.push(waiter);
+      });
+    }
+
+    async function handleHomeLinkTxNotification(event) {
+      const bytes = new Uint8Array(event.target.value.buffer, event.target.value.byteOffset, event.target.value.byteLength);
+      if (bytes.length >= 3 && bytes[0] === CHUNK_MAGIC) {
+        const idx = bytes[1];
+        const total = bytes[2];
+        const payload = bytes.slice(3);
+        if (idx === 0) {
+          hlChunkBuf = [];
+          hlExpectedChunks = total;
+        }
+        hlChunkBuf.push(payload);
+        if (idx + 1 < total) {
+          return; // Wait for remaining chunks
+        }
+        const fullBytes = concatBytes(...hlChunkBuf);
+        hlChunkBuf = [];
+        hlExpectedChunks = 0;
+        const jsonText = utf8Decode(fullBytes);
+        await processHomeLinkPayload(jsonText);
+      } else {
+        const rawText = utf8Decode(bytes);
+        await processHomeLinkPayload(rawText);
+      }
+    }
+
+    async function processHomeLinkPayload(text) {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(text);
+      } catch (_) {
+        // Plain status string sent by ble_server_send_status()
+        log(`[HomeLink TX] Status: ${text}`, text.startsWith("error") ? "log-err" : "log-ble");
+        el("stLastReply").textContent = text;
+        notifyHlWaiters({ type: "plain_status", status: text });
+        return;
+      }
+
+      if (parsed && parsed.type === "device_info") {
+        lastDeviceInfo = parsed;
+        log(`[HomeLink TX] device_info: node_id=${parsed.node_id}, device_id=${parsed.device_id}, auth=${parsed.pairing_auth}, fw=${parsed.version}`, "log-ble");
+        el("stNodeId").textContent = parsed.node_id || "—";
+        el("stFullDeviceId").textContent = parsed.device_id || "—";
+        el("stFwAuth").textContent = `v${parsed.version || "?"} / auth=${parsed.pairing_auth || "none"} (epoch ${parsed.pairing_auth_epoch ?? 0})`;
+        if (parsed.node_id && !el("nodeId").value.trim()) {
+          el("nodeId").value = parsed.node_id;
+          saveFormToStorage();
+        }
+        notifyHlWaiters(parsed);
+        return;
+      }
+
+      if (parsed && parsed.type === "pairing_ready") {
+        log(`[HomeLink TX] pairing_ready: session_id=${parsed.session_id}, node_id=${parsed.node_id}`, "log-ble");
+        if (parsed.node_id) {
+          el("stNodeId").textContent = parsed.node_id;
+          el("nodeId").value = parsed.node_id;
+        }
+        notifyHlWaiters(parsed);
+        return;
+      }
+
+      if (parsed && parsed.type === "pairing_encrypted" && activePairingSession) {
+        try {
+          const decryptedStr = await decryptD2M(activePairingSession, parsed);
+          log(`[HomeLink TX Decrypted #${ (activePairingSession.rxCounter - 1n).toString() }] ${decryptedStr}`, "log-ok");
+          const inner = JSON.parse(decryptedStr);
+          if (inner.status) {
+            el("stLastReply").textContent = `encrypted: ${inner.status}`;
+          }
+          if (inner.sdk_token && SDK_TOKEN_REGEX.test(inner.sdk_token)) {
+            log(`[HomeLink] Received device SDK token from ESP32: ${inner.sdk_token.slice(0, 12)}...`, "log-ok");
+            el("sdkToken").value = inner.sdk_token;
+            saveFormToStorage();
+          }
+          notifyHlWaiters(inner);
+        } catch (err) {
+          log(`[HomeLink Decrypt Error] ${err.message}`, "log-err");
+        }
+        return;
+      }
+
+      log(`[HomeLink TX] ${text}`, "log-ble");
+      notifyHlWaiters(parsed);
+    }
+
+    async function sendHomeLinkJson(objOrStr) {
+      if (!hlRxChar) throw new Error("Home Link RX characteristic not connected");
+      const jsonStr = typeof objOrStr === "string" ? objOrStr : JSON.stringify(objOrStr);
+      const bytes = utf8Encode(jsonStr);
+
+      const totalChunks = Math.max(1, Math.ceil(bytes.length / TX_CHUNK_PAYLOAD_MAX));
+      if (totalChunks > 16) {
+        throw new Error(`Payload too large (${bytes.length} bytes > 16 chunks)`);
+      }
+
+      for (let idx = 0; idx < totalChunks; idx++) {
+        const slice = bytes.slice(idx * TX_CHUNK_PAYLOAD_MAX, (idx + 1) * TX_CHUNK_PAYLOAD_MAX);
+        const frame = new Uint8Array(3 + slice.length);
+        frame[0] = CHUNK_MAGIC;
+        frame[1] = idx;
+        frame[2] = totalChunks;
+        frame.set(slice, 3);
+        if (hlRxChar. writeValueWithResponse) {
+          await hlRxChar.writeValueWithResponse(frame);
+        } else {
+          await hlRxChar.writeValue(frame);
+        }
+        if (totalChunks > 1 && idx + 1 < totalChunks) {
+          await sleep(20);
+        }
+      }
+    }
+
+    // =========================================================================
+    // 6. Subsystem A (Muse Companion `muse_ble`) Helpers
+    // =========================================================================
+    function updateCompanionStatusUi(statusObj) {
+      if (!statusObj) return;
+      if (statusObj.wifi) {
+        const w = statusObj.wifi;
+        el("stWifiState").textContent = `${w.state || "?"} ${w.ssid ? `(${w.ssid})` : ""} ${w.ip ? `[${w.ip}]` : ""}`;
+      }
+      if (statusObj.link) {
+        el("stLinkState").textContent = `linked=${statusObj.link.linked} (${statusObj.link.state || "?"})`;
+      }
+      if (statusObj.hatch) {
+        const h = statusObj.hatch;
+        el("stHatchState").textContent = `${h.state || "?"} (vm=${h.vm ? h.vm.slice(0, 8) + "…" : "none"}, token=${h.token_set ? "yes" : "no"})`;
+      }
+      if (statusObj.last) {
+        el("stLastReply").textContent = statusObj.last;
+      }
+    }
+
+    async function readCompanionStatus() {
+      if (!museRspChar) return null;
+      try {
+        const val = await museRspChar.readValue();
+        const txt = utf8Decode(new Uint8Array(val.buffer, val.byteOffset, val.byteLength));
+        const parsed = JSON.parse(txt);
+        updateCompanionStatusUi(parsed);
+        return parsed;
+      } catch (err) {
+        log(`[Companion Read Error] ${err.message}`, "log-warn");
+        return null;
+      }
+    }
+
+    async function sendCompanionCmd(cmdStr) {
+      if (!museCmdChar) throw new Error("Companion (muse_ble) service is not connected");
+      const redacted = cmdStr.replace(/^((?:wifi\.pass|hatch\.token\+?)=).*$/, "$1***");
+      log(`[Companion CMD] ${redacted}`, "log-ble");
+      const bytes = utf8Encode(cmdStr);
+      if (museCmdChar.writeValueWithResponse) {
+        await museCmdChar.writeValueWithResponse(bytes);
+      } else {
+        await museCmdChar.writeValue(bytes);
+      }
+      await sleep(60);
+    }
+
+    async function sendCompanionTokenChunked(tokenStr) {
+      const CHUNK = 400;
+      for (let off = 0; off < tokenStr.length; off += CHUNK) {
+        const prefix = off === 0 ? "hatch.token=" : "hatch.token+=";
+        await sendCompanionCmd(prefix + tokenStr.slice(off, off + CHUNK));
+      }
+    }
+
+    // =========================================================================
+    // 7. Web Bluetooth Connect / Disconnect
+    // =========================================================================
+    async function connectBle() {
+      if (!navigator.bluetooth) {
+        log("Web Bluetooth is not available. Please open http://localhost:8099 in Google Chrome on macOS.", "log-err");
+        return;
+      }
+
+      try {
+        const acceptAll = el("chkAcceptAll").checked;
+        const options = acceptAll
+          ? {
+              acceptAllDevices: true,
+              optionalServices: [HOMELINK_SVC_UUID, MUSE_BLE_SVC_UUID],
+            }
+          : {
+              filters: [
+                { namePrefix: "MuseGadget-" },
+                { namePrefix: "HomeLink-" },
+                { namePrefix: "Muse-" },
+                { services: [HOMELINK_SVC_UUID] },
+                { services: [MUSE_BLE_SVC_UUID] },
+              ],
+              optionalServices: [HOMELINK_SVC_UUID, MUSE_BLE_SVC_UUID],
+            };
+
+        log("Requesting ESP32 Bluetooth device...", "log-info");
+        bleDevice = await navigator.bluetooth.requestDevice(options);
+        bleDevice.addEventListener("gattserverdisconnected", onBleDisconnected);
+
+        const devName = bleDevice.name || "Unknown ESP32";
+        el("stBleName").textContent = devName;
+        log(`Selected BLE device: ${devName}`, "log-ok");
+
+        // Derive homelink-xxxxxx from MuseGadget-XXXXXX if present
+        const match = devName.match(/^(?:MuseGadget|HomeLink|Muse)-([0-9A-Fa-f]{6})$/);
+        if (match) {
+          const derivedNodeId = `homelink-${match[1].toLowerCase()}`;
+          el("stNodeId").textContent = derivedNodeId;
+          el("nodeId").value = derivedNodeId;
+          saveFormToStorage();
+          log(`Derived Node ID from BLE name: ${derivedNodeId}`, "log-ok");
+        }
+
+        gattServer = await bleDevice.gatt.connect();
+        el("bleBadge").textContent = `BLE: ${devName}`;
+        el("bleBadge").className = "badge ok";
+
+        // 1. Discover Subsystem B: Home Link Service
+        try {
+          const hlSvc = await gattServer.getPrimaryService(HOMELINK_SVC_UUID);
+          hlRxChar = await hlSvc.getCharacteristic(HOMELINK_RX_UUID);
+          hlTxChar = await hlSvc.getCharacteristic(HOMELINK_TX_UUID);
+          await hlTxChar.startNotifications();
+          hlTxChar.addEventListener("characteristicvaluechanged", handleHomeLinkTxNotification);
+          el("stHomeLinkSvc").textContent = "Connected (7fdd3d1c...)";
+          log("Connected to Subsystem B: Home Link GATT Service (7fdd3d1c...)", "log-ok");
+        } catch (err) {
+          hlRxChar = null;
+          hlTxChar = null;
+          el("stHomeLinkSvc").textContent = "Unavailable on device";
+          log(`Home Link GATT service not found: ${err.message}`, "log-warn");
+        }
+
+        // 2. Discover Subsystem A: Muse Companion Service
+        try {
+          const museSvc = await gattServer.getPrimaryService(MUSE_BLE_SVC_UUID);
+          museCmdChar = await museSvc.getCharacteristic(MUSE_BLE_CMD_UUID);
+          museRspChar = await museSvc.getCharacteristic(MUSE_BLE_RSP_UUID);
+          await museRspChar.startNotifications();
+          museRspChar.addEventListener("characteristicvaluechanged", async (ev) => {
+            const msg = utf8Decode(new Uint8Array(ev.target.value.buffer, ev.target.value.byteOffset, ev.target.value.byteLength));
+            el("stLastReply").textContent = msg;
+            log(`[Companion RSP] ${msg}`, msg.includes("error") ? "log-err" : "log-ok");
+            await readCompanionStatus();
+          });
+          el("stMuseBleSvc").textContent = "Connected (4d757365...)";
+          log("Connected to Subsystem A: Muse Companion GATT Service (4d757365...)", "log-ok");
+        } catch (err) {
+          museCmdChar = null;
+          museRspChar = null;
+          el("stMuseBleSvc").textContent = "Unavailable on device";
+          log(`Muse Companion GATT service not found: ${err.message}`, "log-warn");
+        }
+
+        updateButtonsForBleState();
+
+        // Query initial info from both services
+        if (hlRxChar) {
+          log("Requesting Home Link get_device_info...", "log-info");
+          await sendHomeLinkJson({ action: "get_device_info" });
+        }
+        if (museRspChar) {
+          await readCompanionStatus();
+        }
+      } catch (err) {
+        log(`BLE connection failed: ${err.message}`, "log-err");
+      }
+    }
+
+    function onBleDisconnected() {
+      log("BLE device disconnected (note: expected after provision_v2 auth_ok reboot).", "log-warn");
+      hlRxChar = null;
+      hlTxChar = null;
+      museCmdChar = null;
+      museRspChar = null;
+      el("bleBadge").textContent = "BLE: disconnected";
+      el("bleBadge").className = "badge";
+      el("stHomeLinkSvc").textContent = "Disconnected";
+      el("stMuseBleSvc").textContent = "Disconnected";
+      showConfirmBanner(false);
+      updateButtonsForBleState();
+    }
+
+    function updateButtonsForBleState() {
+      const anyConnected = Boolean(hlRxChar || museCmdChar);
+      el("btnDisconnectBle").disabled = !anyConnected;
+      el("btnRefreshInfo").disabled = !anyConnected;
+      el("btnFullProvision").disabled = !hlRxChar;
+      el("btnHomeLinkOnly").disabled = !hlRxChar;
+      el("btnUnpair").disabled = !hlRxChar;
+      el("btnCompanionOnly").disabled = !museCmdChar;
+      el("btnHatchTest").disabled = !museCmdChar;
+    }
+
+    // =========================================================================
+    // 8. Local Proxy API Calls (/api/mint & /api/fetch_vms)
+    // =========================================================================
+    async function checkProxyHealth() {
+      const badge = el("proxyBadge");
+      try {
+        const res = await fetch("/api/health");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        badge.textContent = "Proxy: online (8099)";
+        badge.className = "badge ok";
+      } catch (err) {
+        badge.textContent = "Proxy: offline";
+        badge.className = "badge err";
+        log("Local Python proxy is not reachable. Start `python3 esp32/tools/muse/muse_setup_server.py`.", "log-err");
+      }
+    }
+
+    async function mintDeviceTokens() {
+      const webToken = el("webToken").value.trim();
+      const deviceId = el("nodeId").value.trim();
+      const sdkToken = el("sdkToken").value.trim();
+
+      if (!webToken) {
+        throw new Error("Missing Web User Access Token. Copy it from your logged-in https://muse.ai session.");
+      }
+      if (!deviceId || !deviceId.startsWith("homelink-")) {
+        throw new Error("Node ID must be in the format 'homelink-xxxxxx' (connect BLE or enter manually).");
+      }
+      if (sdkToken && !SDK_TOKEN_REGEX.test(sdkToken)) {
+        log("Warning: SDK token does not match strict 48-char mgst_ format, sending anyway...", "log-warn");
+      }
+
+      log(`Minting 365-day device token pair via local proxy (device_id=${deviceId})...`, "log-info");
+      const res = await fetch("/api/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          web_token: webToken,
+          device_id: deviceId,
+          sdk_token: sdkToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.access_token || !data.refresh_token) {
+        const detail = data.error || data.message || JSON.stringify(data);
+        throw new Error(`Mint failed (HTTP ${res.status}): ${detail}`);
+      }
+
+      el("deviceAccessToken").value = data.access_token;
+      el("deviceRefreshToken").value = data.refresh_token;
+      saveFormToStorage();
+      log(
+        `Minted 365-day device tokens! access_token=${data.access_token.slice(0, 14)}... (${data.access_token.length} chars), refresh_token=${data.refresh_token.slice(0, 14)}...`,
+        "log-ok"
+      );
+      return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+      };
+    }
+
+    async function verifyFetchVms(tokenOverride) {
+      const token = (tokenOverride || el("deviceAccessToken").value || el("webToken").value).trim();
+      if (!token) {
+        throw new Error("Provide a Minted Device access_token (or Web Token) first.");
+      }
+      log("Querying https://api.muse.ai/fetch_vms via local proxy...", "log-info");
+      const res = await fetch("/api/fetch_vms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: token }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`fetch_vms failed (HTTP ${res.status}): ${JSON.stringify(data)}`);
+      }
+      const vms = Array.isArray(data.vm_list) ? data.vm_list : [];
+      log(`fetch_vms returned ${vms.length} VM(s): ${JSON.stringify(vms)}`, "log-ok");
+      if (vms.length > 0 && vms[0].vm_id && !el("vmId").value.trim()) {
+        el("vmId").value = vms[0].vm_id;
+        saveFormToStorage();
+      }
+      return vms;
+    }
+
+    // =========================================================================
+    // 9. Provisioning Flows (Companion + Home Link `provision_v2`)
+    // =========================================================================
+    async function runCompanionProvision({ includeWifi = false, accessToken = "" } = {}) {
+      if (!museCmdChar) {
+        log("Companion service (muse_ble) not available; skipping Companion commands.", "log-warn");
+        return;
+      }
+      const ssid = el("wifiSsid").value.trim();
+      const pass = el("wifiPass").value;
+      const host = el("hatchHost").value.trim() || "https://muse.ai";
+      const vmId = el("vmId").value.trim();
+      const token = (accessToken || el("deviceAccessToken").value || el("webToken").value).trim();
+
+      if (includeWifi && ssid) {
+        await sendCompanionCmd(`wifi.ssid=${ssid}`);
+        await sendCompanionCmd(`wifi.pass=${pass}`);
+        await sendCompanionCmd("wifi.connect");
+      }
+      if (host) {
+        await sendCompanionCmd(`hatch.host=${host}`);
+      }
+      if (vmId) {
+        await sendCompanionCmd(`hatch.vm=${vmId}`);
+      }
+      if (token) {
+        await sendCompanionTokenChunked(token);
+      }
+      await readCompanionStatus();
+      log("Companion (muse_ble) settings written to NVS.", "log-ok");
+    }
+
+    async function runFullHomeLinkProvision({ configureCompanionToo = true } = {}) {
+      if (!hlRxChar) {
+        throw new Error("Connect to the ESP32 Home Link BLE service first.");
+      }
+      const ssid = el("wifiSsid").value.trim();
+      const pass = el("wifiPass").value;
+      if (!ssid || !pass) {
+        throw new Error("Both Wi-Fi SSID and Wi-Fi Password are required for provision_v2.");
+      }
+
+      resetSteps();
+      showConfirmBanner(false);
+
+      // Step 1: Request fresh device_info & send pairing_client_hello
+      setStepState(1, "active");
+      log("Step 1/7: Generating ephemeral P-256 keypair and sending pairing_client_hello...", "log-info");
+
+      const mobileKeyPair = await crypto.subtle.generateKey(
+        { name: "ECDH", namedCurve: "P-256" },
+        true,
+        ["deriveBits"]
+      );
+      const mobilePubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", mobileKeyPair.publicKey));
+      const mobileNonceBytes = crypto.getRandomValues(new Uint8Array(16));
+      const mobilePubB64 = b64urlEncode(mobilePubRaw);
+      const mobileNonceB64 = b64urlEncode(mobileNonceBytes);
+
+      const pairingAuth = (lastDeviceInfo && lastDeviceInfo.pairing_auth) || "none";
+      const pairingPolicy = (lastDeviceInfo && lastDeviceInfo.pairing_policy) || "confirm_press";
+
+      const readyPromise = waitForHlMessage(
+        (m) => (m && m.type === "pairing_ready") || (m && m.type === "plain_status" && m.status.startsWith("error_")),
+        12000,
+        "pairing_ready"
+      );
+
+      await sendHomeLinkJson({
+        action: "pairing_client_hello",
+        version: 5,
+        pairing_auth: pairingAuth,
+        pairing_policy: pairingPolicy,
+        mobile_pub: mobilePubB64,
+        mobile_nonce: mobileNonceB64,
+      });
+
+      const readyMsg = await readyPromise;
+      if (readyMsg.type === "plain_status") {
+        setStepState(1, "error");
+        throw new Error(`ESP32 rejected pairing_client_hello: ${readyMsg.status}`);
+      }
+      setStepState(1, "done");
+
+      // Step 2: Verify Transcript Hash, Derive Keys, Send pairing_client_finished
+      setStepState(2, "active");
+      log("Step 2/7: Verifying pairing_transcript v5 and deriving AES-256-GCM keys...", "log-info");
+
+      const transcriptStr = buildTranscriptV5({
+        version: readyMsg.version,
+        device_id: readyMsg.device_id,
+        node_id: readyMsg.node_id,
+        mac: readyMsg.mac,
+        model: readyMsg.model,
+        firmware_version: readyMsg.firmware_version,
+        pairing_auth: readyMsg.pairing_auth,
+        pairing_auth_epoch: readyMsg.pairing_auth_epoch,
+        pairing_policy: readyMsg.pairing_policy,
+        mobile_pub: mobilePubB64,
+        device_pub: readyMsg.device_pub,
+        mobile_nonce: mobileNonceB64,
+        device_nonce: readyMsg.device_nonce,
+      });
+
+      const transcriptHashBytes = await sha256(utf8Encode(transcriptStr));
+      const computedTranscriptHashB64 = b64urlEncode(transcriptHashBytes);
+      if (computedTranscriptHashB64 !== readyMsg.transcript_hash) {
+        setStepState(2, "error");
+        throw new Error(
+          `Transcript hash mismatch! Computed ${computedTranscriptHashB64}, device sent ${readyMsg.transcript_hash}`
+        );
+      }
+      log(`Transcript hash verified: ${computedTranscriptHashB64}`, "log-ok");
+
+      activePairingSession = await deriveSessionKeys({
+        mobileKeyPair,
+        mobileNonceBytes,
+        devicePubB64: readyMsg.device_pub,
+        deviceNonceB64: readyMsg.device_nonce,
+        transcriptHashBytes,
+      });
+
+      if (activePairingSession.sessionIdB64 !== readyMsg.session_id) {
+        setStepState(2, "error");
+        throw new Error(
+          `Session ID mismatch! Computed ${activePairingSession.sessionIdB64}, device sent ${readyMsg.session_id}`
+        );
+      }
+      log(`Session ID verified: ${activePairingSession.sessionIdB64}`, "log-ok");
+
+      const confirmStatusPromise = waitForHlMessage(
+        (m) =>
+          (m && m.type === "status" && (m.status === "confirm_required" || m.status === "pairing_confirmed")) ||
+          (m && m.type === "plain_status" && m.status.startsWith("error_")),
+        12000,
+        "confirm_required / pairing_confirmed"
+      );
+
+      // Must be exact string '{"action":"pairing_client_finished"}' per link_pairing.c line 662
+      const finishedEnvelope = await encryptM2D(activePairingSession, '{"action":"pairing_client_finished"}');
+      await sendHomeLinkJson(finishedEnvelope);
+      setStepState(2, "done");
+
+      // Step 3: Wait for Physical / Touch Confirmation on ESP32
+      setStepState(3, "active");
+      const firstStatus = await confirmStatusPromise;
+      if (firstStatus.type === "plain_status") {
+        setStepState(3, "error");
+        throw new Error(`ESP32 error after client_finished: ${firstStatus.status}`);
+      }
+
+      if (firstStatus.status === "confirm_required") {
+        showConfirmBanner(
+          true,
+          "ACTION REQUIRED ON ESP32: Tap 'Confirm' or press the button on your WG1200 screen now! (60s timeout)"
+        );
+        log("Step 3/7: Waiting for physical/touch confirmation on the WG1200 screen (up to 60s)...", "log-warn");
+        const confirmedMsg = await waitForHlMessage(
+          (m) =>
+            (m && m.type === "status" && m.status === "pairing_confirmed") ||
+            (m && m.type === "plain_status" && m.status.startsWith("error_")),
+          65000,
+          "pairing_confirmed"
+        );
+        showConfirmBanner(false);
+        if (confirmedMsg.type === "plain_status") {
+          setStepState(3, "error");
+          throw new Error(`Confirmation failed or timed out: ${confirmedMsg.status}`);
+        }
+      }
+      showConfirmBanner(false);
+      setStepState(3, "done");
+      log("Step 3/7: Physical pairing confirmed by ESP32!", "log-ok");
+
+      // Step 4: Ensure we have Minted 365-Day Device Tokens (access_token + refresh_token)
+      setStepState(4, "active");
+      let accessToken = el("deviceAccessToken").value.trim();
+      let refreshToken = el("deviceRefreshToken").value.trim();
+      if (!accessToken || !refreshToken) {
+        log("Step 4/7: Minting 365-day device token pair via local proxy...", "log-info");
+        const minted = await mintDeviceTokens();
+        accessToken = minted.accessToken;
+        refreshToken = minted.refreshToken;
+      } else {
+        log("Step 4/7: Using existing minted 365-day device access_token & refresh_token.", "log-ok");
+      }
+      setStepState(4, "done");
+
+      // Step 5: Configure Companion (muse_ble) BEFORE sending provision_v2
+      // (Because provision_v2 triggers PAIR_THEN_RESTART 2s after auth_ok)
+      setStepState(5, "active");
+      if (configureCompanionToo && museCmdChar) {
+        log("Step 5/7: Writing VM ID, Host, and Token to Companion (muse_ble) NVS...", "log-info");
+        await runCompanionProvision({ includeWifi: false, accessToken });
+      } else {
+        log("Step 5/7: Skipping Companion (muse_ble) step.", "log-info");
+      }
+      setStepState(5, "done");
+
+      // Step 6: Encrypt and send provision_v2
+      setStepState(6, "active");
+      log("Step 6/7: Encrypting and sending provision_v2 over Home Link...", "log-info");
+
+      const provisionPayload = {
+        action: "provision_v2",
+        ssid,
+        password: pass,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        token_type: "device",
+      };
+
+      const provEnvelope = await encryptM2D(activePairingSession, provisionPayload);
+      await sendHomeLinkJson(provEnvelope);
+      setStepState(6, "done");
+
+      // Step 7: Track wifi_connecting -> wifi_connected -> auth_ok
+      setStepState(7, "active");
+      log("Step 7/7: Waiting for ESP32 Wi-Fi connection and VM authentication (auth_ok)...", "log-info");
+
+      const deadline = Date.now() + 45000;
+      while (Date.now() < deadline) {
+        const msg = await waitForHlMessage(
+          (m) => (m && m.type === "status") || (m && m.type === "plain_status"),
+          35000,
+          "provisioning status"
+        );
+        const st = msg.status || "";
+        if (st === "wifi_connecting") {
+          log("ESP32 Status: wifi_connecting (joining 2.4 GHz Wi-Fi)...", "log-info");
+        } else if (st === "wifi_connected") {
+          log("ESP32 Status: wifi_connected!", "log-ok");
+        } else if (st === "auth_ok") {
+          setStepState(7, "done");
+          log("SUCCESS! ESP32 reported 'auth_ok'! Home Link + Companion are provisioned.", "log-ok");
+          log("The ESP32 will now restart (in ~2s) and register with your Muse VM (link.register).", "log-ok");
+          return;
+        } else if (st.startsWith("error_")) {
+          setStepState(7, "error");
+          throw new Error(`ESP32 reported provisioning error: ${st}`);
+        }
+      }
+      throw new Error("Timed out waiting for auth_ok");
+    }
+
+    // =========================================================================
+    // 10. Web Serial SDK Token Injector (>sdk_token=mgst_...\n)
+    //     Matches web-flasher/sdk-token.js & esp32/main/sdk_token_console.h
+    // =========================================================================
+    async function writeSdkTokenOverSerial() {
+      if (!("serial" in navigator)) {
+        log("Web Serial is not supported in this browser. Use Google Chrome.", "log-err");
+        return;
+      }
+      const token = el("sdkToken").value.trim();
+      if (!SDK_TOKEN_REGEX.test(token)) {
+        log(
+          "Invalid SDK token format. Must be 48 chars starting with 'mgst_' (copy from https://gadgets.muse.ai/settings/sdk-tokens).",
+          "log-err"
+        );
+        return;
+      }
+
+      let port = null;
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        await port.setSignals({ dataTerminalReady: false, requestToSend: false }).catch(() => {});
+        log("Opened USB Serial port at 115200 baud. Sending >sdk_token=mgst_...", "log-info");
+
+        const reader = port.readable.getReader();
+        let answer = null;
+        const readLoop = (async () => {
+          const dec = new TextDecoder();
+          let buf = "";
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) return;
+            buf += dec.decode(value, { stream: true });
+            let nl;
+            while ((nl = buf.indexOf("\n")) >= 0) {
+              const line = buf.slice(0, nl).replace(/\r$/, "");
+              buf = buf.slice(nl + 1);
+              const m = line.match(/@sdk_token (ok|error \S+)/);
+              if (m) answer = m[1];
+            }
+          }
+        })().catch(() => {});
+
+        try {
+          const deadline = Date.now() + 20000;
+          await sleep(800);
+          while (!answer && Date.now() < deadline) {
+            const writer = port.writable.getWriter();
+            try {
+              await writer.write(utf8Encode(`\n>sdk_token=${token}\n`));
+            } finally {
+              writer.releaseLock();
+            }
+            const waitUntil = Date.now() + 2500;
+            while (!answer && Date.now() < waitUntil) await sleep(100);
+          }
+        } finally {
+          await reader.cancel().catch(() => {});
+          await readLoop;
+          reader.releaseLock();
+          await port.close().catch(() => {});
+        }
+
+        if (answer === "ok") {
+          log("SDK Token stored in ESP32 NVS (@sdk_token ok)! The ESP32 is restarting with the new token.", "log-ok");
+        } else if (answer) {
+          log(`ESP32 rejected SDK token: ${answer}`, "log-err");
+        } else {
+          log("Timed out waiting for @sdk_token ok over USB serial. Make sure you selected the console port.", "log-err");
+        }
+      } catch (err) {
+        log(`USB Serial SDK token error: ${err.message}`, "log-err");
+      }
+    }
+
+    // =========================================================================
+    // 11. LocalStorage Persistence & Event Listeners
+    // =========================================================================
+    const STORAGE_KEYS = ["wifiSsid", "sdkToken", "nodeId", "vmId", "hatchHost", "webToken", "deviceAccessToken", "deviceRefreshToken"];
+
+    function saveFormToStorage() {
+      for (const k of STORAGE_KEYS) {
+        const input = el(k);
+        if (input) localStorage.setItem(`muse_setup_${k}`, input.value);
+      }
+    }
+
+    function loadFormFromStorage() {
+      for (const k of STORAGE_KEYS) {
+        const saved = localStorage.getItem(`muse_setup_${k}`);
+        if (saved !== null && el(k)) {
+          // Keep default VM ID & Host if storage is empty
+          if ((k === "vmId" || k === "hatchHost") && !saved.trim()) continue;
+          el(k).value = saved;
+        }
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      loadFormFromStorage();
+      for (const k of STORAGE_KEYS) {
+        el(k)?.addEventListener("input", saveFormToStorage);
+      }
+
+      runCryptoSelfTest();
+      checkProxyHealth();
+
+      el("btnConnectBle").addEventListener("click", connectBle);
+      el("btnDisconnectBle").addEventListener("click", () => {
+        if (bleDevice && bleDevice.gatt.connected) {
+          bleDevice.gatt.disconnect();
+        }
+      });
+
+      el("btnRefreshInfo").addEventListener("click", async () => {
+        if (hlRxChar) await sendHomeLinkJson({ action: "get_device_info" });
+        if (museRspChar) await readCompanionStatus();
+      });
+
+      el("btnToggleWifiPass").addEventListener("click", () => {
+        const inp = el("wifiPass");
+        const btn = el("btnToggleWifiPass");
+        const show = inp.type === "password";
+        inp.type = show ? "text" : "password";
+        btn.textContent = show ? "Hide" : "Show";
+        btn.setAttribute("aria-pressed", String(show));
+      });
+
+      el("btnSerialSdkToken").addEventListener("click", writeSdkTokenOverSerial);
+
+      el("btnCopyConsoleCmd").addEventListener("click", async () => {
+        const snippet = `fetch('/api/auth/check',{method:'POST'}).then(r=>r.json()).then(d=>{console.log('WEB_TOKEN:',d.access_token);navigator.clipboard.writeText(d.access_token).then(()=>alert('Copied web access_token to clipboard!')).catch(()=>prompt('Copy access_token:',d.access_token));})`;
+        await navigator.clipboard.writeText(snippet);
+        log("Copied DevTools snippet! Paste it into your https://muse.ai browser console to copy your web access_token.", "log-ok");
+      });
+
+      el("provisionForm").addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        try {
+          await mintDeviceTokens();
+        } catch (err) {
+          log(err.message, "log-err");
+        }
+      });
+
+      el("btnVerifyVms").addEventListener("click", async () => {
+        try {
+          await verifyFetchVms();
+        } catch (err) {
+          log(err.message, "log-err");
+        }
+      });
+
+      el("btnFullProvision").addEventListener("click", async () => {
+        try {
+          await runFullHomeLinkProvision({ configureCompanionToo: true });
+        } catch (err) {
+          showConfirmBanner(false);
+          log(`Full Provisioning failed: ${err.message}`, "log-err");
+        }
+      });
+
+      el("btnHomeLinkOnly").addEventListener("click", async () => {
+        try {
+          await runFullHomeLinkProvision({ configureCompanionToo: false });
+        } catch (err) {
+          showConfirmBanner(false);
+          log(`Home Link Provisioning failed: ${err.message}`, "log-err");
+        }
+      });
+
+      el("btnCompanionOnly").addEventListener("click", async () => {
+        try {
+          await runCompanionProvision({ includeWifi: true });
+        } catch (err) {
+          log(`Companion Setup failed: ${err.message}`, "log-err");
+        }
+      });
+
+      el("btnHatchTest").addEventListener("click", async () => {
+        try {
+          await sendCompanionCmd("hatch.test");
+        } catch (err) {
+          log(`hatch.test failed: ${err.message}`, "log-err");
+        }
+      });
+
+      el("btnUnpair").addEventListener("click", async () => {
+        if (!confirm("Send unpair/factory-reset to ESP32 Home Link?")) return;
+        try {
+          await sendHomeLinkJson({ action: "unpair" });
+          log("Sent unpair command to Home Link.", "log-warn");
+        } catch (err) {
+          log(`Unpair failed: ${err.message}`, "log-err");
+        }
+      });
+
+      el("btnClearLog").addEventListener("click", () => {
+        el("logOutput").textContent = "";
+      });
+
+      log("Ready. Connect your ESP32 via Web Bluetooth, or mint your 365-day device tokens first.", "log-info");
+    });
+  </script>
+</body>
+</html>

@@ -44,6 +44,7 @@
 #endif
 #if CONFIG_MUSE_BOARD_WXM_WG1200
 #include <math.h>
+#include "esp_random.h"
 #include "boards/board_wxm_wg1200.h"
 #include "wg1200_weather.h"
 #include "wxm_boot_mgr.h"
@@ -1031,9 +1032,11 @@ static void build_hatch_page(lv_obj_t *tile)
 static void tick_hatch(void)
 {
     char link[96];
-    const char *paired = !muse_link_hatch_linked()    ? "not paired"
-                         : muse_link_sdk_token_changed() ? "paired with another SDK token, pair again to use this one"
-                                                         : "paired";
+    const char *paired = !muse_link_hatch_linked()
+                             ? (muse_settings_hatch_token_len() > 0 ? "device token configured" : "not paired")
+                             : muse_link_sdk_token_changed()
+                                   ? "paired with another SDK token, pair again to use this one"
+                                   : "paired";
     snprintf(link, sizeof(link), "Muse app: %s\n%s", paired, muse_link_state_name(muse_link_state()));
     set_text(s_link_status, link);
     if (s_link_reset_armed_us && esp_timer_get_time() - s_link_reset_armed_us >= 5000000) {
@@ -1459,7 +1462,8 @@ static void build_power_page(lv_obj_t *tile)
 /* ---------- Weather (WG1200 BMP390 + SX1262 LoRa) ---------- */
 
 static lv_obj_t *s_wx_indoor_temp, *s_wx_indoor_press, *s_wx_radio_region, *s_wx_radio_stats;
-static lv_obj_t *s_wx_out_model, *s_wx_out_temp, *s_wx_out_wind, *s_wx_out_rain, *s_wx_out_solar, *s_wx_out_age;
+static lv_obj_t *s_wx_out_model, *s_wx_out_temp, *s_wx_out_wind, *s_wx_out_gust;
+static lv_obj_t *s_wx_out_rain_rate, *s_wx_out_rain_daily, *s_wx_out_solar, *s_wx_out_age;
 
 static void tick_weather(void);
 
@@ -1474,19 +1478,135 @@ static void on_weather_region_cycle(lv_event_t *e)
     tick_weather();
 }
 
+static void format_wg1200_telemetry(char *buf, size_t cap)
+{
+    wg1200_weather_state_t st;
+    wg1200_weather_get_state(&st);
+    int n = 0;
+    if (st.outdoor_valid) {
+        n += snprintf(buf + n, cap - (size_t)n,
+                      "Temp: %.1f C, Humidity: %.0f%%, ",
+                      (double)st.outdoor_temp_c, (double)st.outdoor_humidity_pct);
+        if (st.bmp390_valid && (size_t)n < cap) {
+            n += snprintf(buf + n, cap - (size_t)n,
+                          "Pressure: %.1f hPa, ",
+                          (double)st.indoor_pressure_hpa);
+        }
+        if ((size_t)n < cap) {
+            snprintf(buf + n, cap - (size_t)n,
+                     "Wind: %.1f m/s (Gust: %.1f m/s) @ %u deg, "
+                     "Rain Rate: %.1f mm/h, Daily Rain: %.1f mm, "
+                     "UV: %.1f, Solar: %.1f W/m2 (%.0f lx).",
+                     (double)st.wind_speed_ms, (double)st.wind_gust_ms, (unsigned)st.wind_dir_deg,
+                     (double)st.rain_rate_mm_h, (double)st.rain_daily_mm,
+                     (double)st.uv_index, (double)st.solar_rad_wm2, (double)st.illuminance_lux);
+        }
+    } else if (st.bmp390_valid) {
+        snprintf(buf, cap, "Pressure: %.1f hPa (waiting for outdoor weather station packet).",
+                 (double)st.indoor_pressure_hpa);
+    } else {
+        snprintf(buf, cap, "Weather sensors initializing.");
+    }
+}
+
+static void send_wg1200_prompt(const char *instruction)
+{
+    char telemetry[384];
+    format_wg1200_telemetry(telemetry, sizeof(telemetry));
+    size_t len = strlen(telemetry) + strlen(instruction) + 32;
+    char *prompt = malloc(len);
+    if (!prompt) {
+        return;
+    }
+    snprintf(prompt, len, "[Live Weather] %s %s", telemetry, instruction);
+    wg1200_buzzer_beep(30);
+    show(s_home);
+    muse_ui_show_face();
+    muse_hatch_ui_text_turn(prompt);
+}
+
+static void on_wx_ask_brief(lv_event_t *e)
+{
+    (void)e;
+    send_wg1200_prompt(
+        "Give a concise 2-sentence hyperlocal microclimate and short-term forecast briefing. "
+        "Reply directly in chat for the native Muse screen (do not call wg1200.notify).");
+}
+
+static void on_wx_ask_smarthome(lv_event_t *e)
+{
+    (void)e;
+    send_wg1200_prompt(
+        "First call device.discover on this gadget to scan the local network (ARP, mDNS, SSDP, NetBIOS) "
+        "for smart-home devices, hubs, or appliances. Then, based ONLY on the actual LAN devices found "
+        "and these live weather readings, give a concise smart-home recommendation. Reply directly in chat.");
+}
+
+void muse_settings_ui_trigger_wg1200_weather_card(void)
+{
+    static const char *const k_styles[] = {
+        "Retro 1970s CRT TV Weather Broadcast",
+        "Japanese Ukiyo-e Woodblock Print (Hokusai style)",
+        "Studio Ghibli Painterly Anime Landscape",
+        "NASA Mission Control Telemetry HUD",
+        "16-bit SNES Pixel Art RPG Weather Screen",
+        "Minimalist Swiss Bauhaus Typography Poster",
+        "Watercolor Botanical & Sky Field Journal Sketch",
+        "Cyberpunk Neon Rain-Slicked Street Hologram",
+        "Vintage Brass Nautical Barometer & Maritime Chart",
+        "Isometric 3D Tiny Weather Station Diorama",
+        "Art Deco 1920s Travel Poster",
+        "Synthwave Sunset Outrun Grid",
+    };
+    static const char *const k_twists[] = {
+        "Include a charming character or mascot dressed appropriately for this exact temperature, wind, and rain.",
+        "Include a witty one-line microclimate mood quote at the bottom of the card.",
+        "Dramatically emphasize the live sky lighting, UV, and wind motion in the artwork.",
+        "Feature bold, high-contrast typography for the temperature, wind gust, pressure, and rain.",
+        "Frame the weather metrics inside an ornate thematic border matching the art style.",
+        "Include a tiny visual indicator of what outdoor activity or drink fits this exact weather.",
+    };
+    uint32_t r1 = esp_random();
+    uint32_t r2 = esp_random();
+    const char *style = k_styles[r1 % (sizeof(k_styles) / sizeof(k_styles[0]))];
+    const char *twist = k_twists[r2 % (sizeof(k_twists) / sizeof(k_twists[0]))];
+    unsigned seed = (unsigned)((r1 ^ r2) % 10000U);
+
+    char instruction[512];
+    snprintf(instruction, sizeof(instruction),
+             "Generate a unique 480x480 visual weather card image on the VM from these live readings "
+             "and push it to this screen using display.draw_file (do not call wg1200.notify). "
+             "Visual Art Style: %s. Creative Twist: %s (Random Seed #%u). "
+             "After drawing the image, reply with a 1-sentence description of the card.",
+             style, twist, seed);
+    send_wg1200_prompt(instruction);
+}
+
+static void on_wx_ask_drawcard(lv_event_t *e)
+{
+    (void)e;
+    muse_settings_ui_trigger_wg1200_weather_card();
+}
+
 static void build_weather_page(lv_obj_t *tile)
 {
     lv_obj_t *list;
     s_weather = page(tile, "WEATHER", true, &list);
-    note(list, "Indoor BMP390 + Outdoor SX1262 LoRa");
-    s_wx_indoor_temp = info_row(list, "Indoor Temp");
-    s_wx_indoor_press = info_row(list, "Pressure");
+    note(list, "Ask Muse (Swipe down on Muse face for Weather Card)");
+    button(list, "Hyperlocal Brief", COLOR_ACCENT, on_wx_ask_brief, NULL);
+    button(list, "Draw Weather Card", COLOR_ACCENT, on_wx_ask_drawcard, NULL);
+    button(list, "LAN Smart Home Check", COLOR_ACCENT, on_wx_ask_smarthome, NULL);
+    note(list, "BMP390 Barometer + Outdoor SX1262 LoRa");
+    s_wx_indoor_temp = info_row(list, "Gateway Temp");
+    s_wx_indoor_press = info_row(list, "Barometric Pressure");
     row(list, LV_SYMBOL_WIFI, "LoRa Region", &s_wx_radio_region, on_weather_region_cycle, NULL);
     s_wx_radio_stats = info_row(list, "SX1262 RX");
     s_wx_out_model = info_row(list, "Outdoor Station");
     s_wx_out_temp = info_row(list, "Outdoor Temp/RH");
-    s_wx_out_wind = info_row(list, "Wind");
-    s_wx_out_rain = info_row(list, "Rain");
+    s_wx_out_wind = info_row(list, "Wind Speed");
+    s_wx_out_gust = info_row(list, "Wind Gust");
+    s_wx_out_rain_rate = info_row(list, "Rain Rate");
+    s_wx_out_rain_daily = info_row(list, "Daily Rain");
     s_wx_out_solar = info_row(list, "Solar / UV");
     s_wx_out_age = info_row(list, "Last Packet");
     note(list, "Tap LoRa Region to cycle EU868 / US915 / AS923. Receives WS1001 and WS1300 stations.");
@@ -1537,8 +1657,14 @@ static void tick_weather(void)
                  (double)st.wind_speed_ms, (unsigned)st.wind_dir_deg);
         set_text(s_wx_out_wind, buf);
 
-        snprintf(buf, sizeof(buf), "%.1f mm", (double)st.rain_accum_mm);
-        set_text(s_wx_out_rain, buf);
+        snprintf(buf, sizeof(buf), "%.1f m/s", (double)st.wind_gust_ms);
+        set_text(s_wx_out_gust, buf);
+
+        snprintf(buf, sizeof(buf), "%.1f mm/h", (double)st.rain_rate_mm_h);
+        set_text(s_wx_out_rain_rate, buf);
+
+        snprintf(buf, sizeof(buf), "%.1f mm", (double)st.rain_daily_mm);
+        set_text(s_wx_out_rain_daily, buf);
 
         snprintf(buf, sizeof(buf), "%.0f W/m2  UV %.1f",
                  (double)st.solar_rad_wm2, (double)st.uv_index);
@@ -1551,7 +1677,9 @@ static void tick_weather(void)
         set_text(s_wx_out_model, "Waiting for signal...");
         set_text(s_wx_out_temp, "-");
         set_text(s_wx_out_wind, "-");
-        set_text(s_wx_out_rain, "-");
+        set_text(s_wx_out_gust, "-");
+        set_text(s_wx_out_rain_rate, "-");
+        set_text(s_wx_out_rain_daily, "-");
         set_text(s_wx_out_solar, "-");
         set_text(s_wx_out_age, "-");
     }
