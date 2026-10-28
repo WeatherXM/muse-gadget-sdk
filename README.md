@@ -37,38 +37,35 @@ limitations under the License.
 Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable with no real-world sensors, while most commercial desk displays cost $180+ just to show static web widgets. Porting the Muse ESP32 SDK to the **[WeatherXM D1 (`WG1200`)](https://weatherxm.com/stations/d1-wifi/)** unlocks four practical capabilities in a single desktop enclosure:
 
 1. **Physical Ground Truth → Local Smart-Home Action (`Sensors + LAN Tunnel`):**
-   Cloud AI agents are typically blind to the actual microclimate outside your window—relying on coarse city forecasts while a 45 km/h gust hits your balcony or rain starts on the patio. By combining live roof telemetry (`sensors.read`) with the built-in local network discovery and HTTP tunnel (`CONFIG_HOMEHUB_TUNNEL` + `device.discover`), an agent can correlate real wind gusts, tipping-bucket rain rate, barometric pressure drops, and solar irradiance (`W/m²`) directly with local smart-home hubs, relays, awnings, irrigation controllers, HVAC, and media devices on your Wi-Fi.
+   Cloud AI agents are typically blind to the actual microclimate outside your window—relying on coarse city forecasts while a 45 km/h gust hits your balcony or rain starts on the patio. By combining live roof telemetry (`sensors.read`) with built-in local network discovery and HTTP tunneling (`device.discover`), an agent can pair real wind gusts, rain rate, barometric pressure drops, and solar irradiance directly with local smart-home hubs, relays, awnings, irrigation controllers, HVAC, and media devices on your Wi-Fi.
 2. **A Dynamic `480×480` Visual Canvas for AI & Automation (Beyond Static Numbers):**
-   Instead of hardcoding every C/LVGL screen in firmware, the `ESP32-S3-WROOM-1 (16 MB Flash / 8 MB Octal PSRAM)` exposes hardware-accelerated `480×480` JPEG/RGB565 rendering (`display.draw_file`, `display.draw_url`) and dismissible top-layer alert cards with passive buzzer tones (`wg1200.notify`). Any personal AI agent, local home-automation hub, or custom script can synthesize live telemetry into bespoke infographics, storm alerts, doorbell/camera snapshots, solar PV gauges, or generative artwork on the fly.
+   Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Any personal AI agent, local home-automation hub, or custom script can turn live weather into bespoke infographics, storm alerts, doorbell/camera snapshots, solar PV gauges, or generative artwork on the fly.
 3. **Turnkey Dual-Boot Appliance (`Zero Risk to Stock Firmware`):**
-   Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs RSA-3072 Secure Boot V2 signed firmware into the secondary OTA slot (`ota_1` at `0x820000`) with an isolated `muse_nvs` partition (`0xF21000`). Your factory X.509 identity (`esp_secure_cert`), encrypted WeatherXM NVS (`nvs` + `nvs_key`), `spiffs`, and stock WeatherXM OS (`factory` / `ota_0`) remain 100% untouched—reboot back and forth in 5 seconds from the touchscreen, top button, or a remote agent command.
-4. **Long-Range Sub-GHz LoRa (`SX1262`) Meets Personal AI:**
-   Unlike Wi-Fi-only desk gadgets, the `WG1200` integrates a Semtech `SX1262` sub-GHz radio (`868 / 915 / 923 MHz`) alongside Wi-Fi and BLE. It decodes solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—and lays the foundation for bridging long-range sub-GHz field sensors and peer-to-peer LoRa mesh telemetry directly into personal AI workflows.
+   Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs cleanly into the secondary firmware slot alongside your existing WeatherXM OS. Your station identity, settings, and stock WeatherXM firmware remain 100% untouched—reboot back and forth in 5 seconds from the touchscreen, top button, or a remote agent command.
+4. **Long-Range Sub-GHz LoRa Meets Personal AI:**
+   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—and lays the foundation for bridging long-range outdoor field sensors and peer-to-peer LoRa mesh telemetry directly into personal AI workflows.
 
 ---
 
 ## Highlights & Bells and Whistles (`wxm-wg1200`)
 
-- **Authentic SX1262 WeatherXM LoRa P2P Receiver & Rain Engine (`wg1200_weather.c`):**
-  - Native `500 kHz BW`, `SF7/SF9..SF12` preamble scan, `CR 4/5`, `SyncWord 0x12` receiver across `EU868`, `US915`, `AS923`, `AU915`, `KR920`, and `IN865`.
-  - Decodes both **`WS1001`** (22-byte frame, magic `0x5A`, XOR key `0xA3`, CRC16-MODBUS) and **`WS1300`** (17-byte frame, preamble `0x35/0x36/0x37`, XOR checksum) outdoor stations alongside the onboard **Bosch BMP390** indoor barometer (`hPa`).
-  - Computes tipping-bucket **Rain Rate (`mm/h`)** from tip intervals (with automatic decay) and **Daily Rain (`mm`)** accumulated since local midnight, persisted across reboots in `RTC_NOINIT_ATTR` + NVS (`wx_daily`).
-  - **Primary Station Lock:** Automatically locks onto your paired station ID (`device_id` in NVS, or first valid station with a 600s fallback) so neighboring stations never pollute your telemetry or trigger false rain tips.
+- **Live Outdoor Weather Station + Rain Tracking:**
+  - Receives real-time outdoor temperature, humidity, wind speed, wind gusts, wind direction, UV index, solar irradiance, and light directly from your rooftop station (`WS1001` / `WS1300`), paired with indoor barometric pressure (`hPa`).
+  - Tracks live **Rain Rate (`mm/h`)** and **Daily Rain Accumulation (`mm`)** across reboots, while automatically locking onto your own outdoor station so neighboring stations never mix into your data.
 - **Swipe-Down Generative `480×480` Weather Cards:**
-  - **Swipe down anywhere on the main Muse face** (or over an active card, or tap **Draw Weather Card** in `Settings → Weather`) to send live outdoor telemetry to your Muse VM paired with a hardware-RNG randomized art style (12 styles including *Ukiyo-e woodblock*, *Studio Ghibli anime*, *Art Deco*, *Synthwave*, *16-bit pixel RPG*, *Bauhaus poster*, *Watercolor field notes*, *Nautical chart*, etc.) and creative twist.
-  - The Muse VM generates a one-of-a-kind `480×480` card reflecting your exact outdoor conditions and streams it onto the screen via `display.draw_file`.
-- **No-Mic Touchscreen Quick Actions & Live Prompt Paging (`muse_hatch_ui_text_turn`):**
-  - Designed specifically for a mic-less desk console: one-tap touch actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) inject live outdoor weather telemetry and send a typed turn over `/chat/stream`.
-  - Pages your sent prompt on-screen while `THINKING` until the first character of the reply arrives (`!has_reply_text()`), then pages Muse's streaming response across the `480×480` display.
-- **2-Way Cloud Muse VM ↔ `WG1200` Command Surface (`link.register` / `link.invoke`):**
-  - `sensors.read` — Returns live outdoor (`WS1001`/`WS1300`) and indoor (`BMP390`) weather metrics with per-sensor `age_s` and LoRa radio link stats (`RSSI`, `SNR`, station ID, packet counters).
-  - `display.draw_file` / `display.draw_url` / `display.show_animation` — Streams `480×480` baseline JPEGs or raw RGB565 frames directly from the Muse VM (`/fs/raw/...`) or HTTP URLs onto the screen.
-  - `wg1200.notify` — Renders a dismissible LVGL top-layer alert card (`title`, `message`, `duration_s`) and beeps the passive SMD buzzer (`PCA9535 IO1_5`).
-  - `device.discover` & Home-Network Tunnel — Scans the local LAN (`ARP`, `mDNS`, `SSDP`, `NetBIOS`) and tunnels local HTTP requests so Muse can act on your smart-home devices using live weather context.
-  - `device.boot_weatherxm` — Reboots the console back into stock WeatherXM OS (`ota_0` or `factory`).
-- **Web Bluetooth + Web Serial Setup Console (`esp32/tools/muse/muse_full_setup.html`):**
-  - Browser-based provisioning tool + local proxy (`muse_setup_server.py`) for one-click Wi-Fi setup, 365-day device token minting, and HomeLink pairing.
-  - Full build, dual-boot backup/install (`wg1200_dualboot.sh`), schematic pinout, and partition layout documented in **[`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md)**.
+  - **Swipe down anywhere on the main Muse face** (or over an active card, or tap **Draw Weather Card** in `Settings → Weather`) to turn your live outdoor weather into a one-of-a-kind `480×480` artwork.
+  - Each swipe pairs your exact outdoor conditions with a randomized visual style (*Ukiyo-e woodblock*, *Studio Ghibli anime*, *Art Deco*, *Synthwave*, *16-bit pixel RPG*, *Bauhaus poster*, *Watercolor field notes*, *Nautical chart*, and more) and streams the finished card straight to the screen.
+- **No-Mic Touchscreen Quick Actions & Live On-Screen Replies:**
+  - Built for a mic-less desk console: one-tap touch actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) automatically include your live outdoor weather and send the request to Muse.
+  - Displays your prompt on-screen while Muse is thinking, then streams Muse's answer right across the `480×480` display.
+- **2-Way Muse ↔ `WG1200` Smart-Home & Display Tools:**
+  - `sensors.read` — Lets you ask Muse about your exact rooftop weather, wind gusts, or rain from your phone or laptop at any time.
+  - `display.draw_file` / `display.draw_url` / `display.show_animation` — Draws custom `480×480` cards, charts, or images onto the screen on demand.
+  - `wg1200.notify` — Pushes a dismissible alert card onto the screen with an optional audible buzzer chime.
+  - `device.discover` & Home-Network Tunnel — Discovers devices on your home Wi-Fi and bridges local smart-home APIs so Muse can trigger actions based on real outdoor weather.
+  - `device.boot_weatherxm` — Reboots the console back into stock WeatherXM OS whenever you want.
+- **1-Click Browser Setup & Non-Destructive Dual-Boot:**
+  - Includes a browser-based **Web Bluetooth + Web Serial Setup Console** (`esp32/tools/muse/muse_full_setup.html`) for easy Wi-Fi and token setup, and installs cleanly alongside your existing WeatherXM firmware (`esp32/tools/wg1200_dualboot.sh`). Full guide in **[`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md)**.
 
 ---
 
