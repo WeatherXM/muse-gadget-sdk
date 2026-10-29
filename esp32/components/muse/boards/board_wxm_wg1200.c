@@ -651,22 +651,6 @@ static void display_unlock(void)
 static unsigned poll_buttons(void)
 {
     unsigned ev = muse_gpio_button_poll(&s_btn_top);
-    static int hold_ticks = 0;
-
-    if (s_btn_top.pressed) {
-        hold_ticks++;
-        if (hold_ticks == 250) {
-            /* 2.5s hold warning */
-            muse_state_set_caption("HOLD FOR WEATHERXM...");
-        } else if (hold_ticks == 500) {
-            /* 5.0s hold hardware failsafe: beep and reboot to WeatherXM */
-            muse_state_set_caption("BOOTING WEATHERXM...");
-            wg1200_buzzer_beep(120);
-            wxm_boot_return_to_weatherxm();
-        }
-    } else {
-        hold_ticks = 0;
-    }
 
     if (ev & MUSE_BTN_TALK_PRESS) {
         if (muse_link_state() == MUSE_LINK_CONFIRM && muse_link_talk_press()) {

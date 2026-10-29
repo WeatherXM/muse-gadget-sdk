@@ -7,9 +7,11 @@
 #include "driver/gpio.h"
 #include "esp_app_desc.h"
 #include "esp_attr.h"
+#include "esp_flash_partitions.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
+#include "esp_rom_crc.h"
 #include "esp_rom_gpio.h"
 #include "esp_rom_sys.h"
 #include "esp_system.h"
@@ -154,6 +156,17 @@ void wxm_boot_get_info(wxm_boot_info_t *out)
     bool ok_ota0 = ota0 && (ota0 != running) &&
                    (esp_ota_get_partition_description(ota0, &desc_ota0) == ESP_OK);
 
+    if (ok_factory) {
+        out->factory_part = factory;
+        strlcpy(out->factory_project, desc_factory.project_name, sizeof(out->factory_project));
+        strlcpy(out->factory_version, desc_factory.version, sizeof(out->factory_version));
+    }
+    if (ok_ota0) {
+        out->ota0_part = ota0;
+        strlcpy(out->ota0_project, desc_ota0.project_name, sizeof(out->ota0_project));
+        strlcpy(out->ota0_version, desc_ota0.version, sizeof(out->ota0_version));
+    }
+
     /* Prefer ota_0 if it holds a WeatherXM image; otherwise factory if it holds WeatherXM. */
     if (ok_ota0 && is_wxm_project(desc_ota0.project_name)) {
         out->wxm_part = ota0;
@@ -185,24 +198,87 @@ void wxm_boot_get_info(wxm_boot_info_t *out)
     }
 }
 
+static StackType_t s_boot_stack[4096 / sizeof(StackType_t)];
+static StaticTask_t s_boot_tcb;
+static volatile bool s_boot_in_progress = false;
+
+static esp_err_t wxm_write_otadata_for_partition(const esp_partition_t *part)
+{
+    if (!part) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const esp_partition_t *otadata = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
+    if (!otadata) {
+        ESP_LOGE(TAG, "otadata partition not found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    /*
+     * Erase both 4 KB sectors of otadata (8 KB total at 0x13000).
+     * When both sectors are 0xFF, the ESP-IDF bootloader boots 'factory' (0x20000).
+     */
+    esp_err_t err = esp_partition_erase_range(otadata, 0, otadata->size);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to erase otadata: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    if (part->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY) {
+        ESP_LOGI(TAG, "otadata cleared to 0xFF -> bootloader will boot factory (0x%lx)",
+                 (unsigned long)part->address);
+        return ESP_OK;
+    }
+
+    if (part->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_0 &&
+        part->subtype < ESP_PARTITION_SUBTYPE_APP_OTA_MAX) {
+        uint32_t slot = (uint32_t)(part->subtype - ESP_PARTITION_SUBTYPE_APP_OTA_0);
+        esp_ota_select_entry_t entry;
+        memset(&entry, 0xFF, sizeof(entry));
+        /*
+         * In ESP-IDF bootloader: (ota_seq - 1) % num_ota_partitions == slot
+         * With 2 OTA partitions (ota_0, ota_1):
+         *   ota_seq = 1 -> (1 - 1) % 2 = 0 (ota_0)
+         *   ota_seq = 2 -> (2 - 1) % 2 = 1 (ota_1)
+         */
+        entry.ota_seq = slot + 1;
+        entry.ota_state = ESP_OTA_IMG_VALID;
+        entry.crc = esp_rom_crc32_le(UINT32_MAX, (const uint8_t *)&entry.ota_seq, sizeof(entry.ota_seq));
+
+        err = esp_partition_write(otadata, 0, &entry, sizeof(entry));
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to write otadata for slot %lu: %s",
+                     (unsigned long)slot, esp_err_to_name(err));
+            return err;
+        }
+        ESP_LOGI(TAG, "otadata set to ota_%lu (seq=%lu, crc=0x%08lx) -> 0x%lx",
+                 (unsigned long)slot, (unsigned long)entry.ota_seq,
+                 (unsigned long)entry.crc, (unsigned long)part->address);
+        return ESP_OK;
+    }
+
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
 static void wxm_boot_worker_task(void *arg)
 {
     const esp_partition_t *part = (const esp_partition_t *)arg;
     /* Wait briefly so any HTTP/WS/serial/UI caller can flush its response first. */
-    vTaskDelay(pdMS_TO_TICKS(350));
+    vTaskDelay(pdMS_TO_TICKS(300));
 
-    esp_err_t err = esp_ota_set_boot_partition(part);
+    esp_err_t err = wxm_write_otadata_for_partition(part);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_set_boot_partition(%s) failed: %s",
+        ESP_LOGE(TAG, "wxm_write_otadata_for_partition(%s) failed: %s",
                  part->label, esp_err_to_name(err));
         muse_state_set_mode(MUSE_MODE_ERROR);
         muse_state_set_caption("BOOT SWITCH FAILED");
+        s_boot_in_progress = false;
         vTaskDelete(NULL);
         return;
     }
     ESP_LOGW(TAG, "Boot partition set to '%s' (0x%lx); restarting now...",
              part->label, (unsigned long)part->address);
-    vTaskDelay(pdMS_TO_TICKS(250));
+    vTaskDelay(pdMS_TO_TICKS(150));
     wxm_prepare_safe_restart_gpios();
     esp_restart();
 }
@@ -212,19 +288,26 @@ esp_err_t wxm_boot_to_partition(const esp_partition_t *part)
     if (!part) {
         return ESP_ERR_NOT_FOUND;
     }
+    if (s_boot_in_progress) {
+        return ESP_OK;
+    }
+    s_boot_in_progress = true;
     ESP_LOGW(TAG, "Switching boot partition to '%s' (0x%lx) and rebooting...",
              part->label, (unsigned long)part->address);
-    muse_state_set_mode(MUSE_MODE_OFF);
+    muse_state_poke();
     muse_state_set_caption("BOOTING %s...", part->label);
 
-    /*
-     * Secure Boot V2 RSA-3072 signature verification inside esp_ota_set_boot_partition()
-     * requires ~8 KB of stack, which overflows small timer/input tasks (esp_timer, lvgl timer,
-     * muse_serial). Run the partition verification and otadata update on a dedicated 16 KB task.
-     */
-    BaseType_t ok = xTaskCreate(wxm_boot_worker_task, "wxm_boot", 16384, (void *)part, 10, NULL);
-    if (ok != pdPASS) {
+    TaskHandle_t h = xTaskCreateStatic(
+        wxm_boot_worker_task,
+        "wxm_boot",
+        sizeof(s_boot_stack) / sizeof(StackType_t),
+        (void *)part,
+        10,
+        s_boot_stack,
+        &s_boot_tcb);
+    if (!h) {
         ESP_LOGE(TAG, "Failed to spawn wxm_boot_worker_task");
+        s_boot_in_progress = false;
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;

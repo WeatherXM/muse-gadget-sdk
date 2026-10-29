@@ -1668,93 +1668,129 @@ static void tick_weather(void)
 
 /* ---------- WeatherXM Dual-Boot ---------- */
 
-static lv_obj_t *s_wxm_running, *s_wxm_factory, *s_wxm_ota0, *s_wxm_btn_factory_lbl, *s_wxm_btn_ota0_lbl;
-static int64_t s_wxm_factory_armed_us;
-static int64_t s_wxm_ota0_armed_us;
+static lv_obj_t *s_wxm_slots_col, *s_wxm_confirm_col;
+static lv_obj_t *s_wxm_running, *s_wxm_factory, *s_wxm_ota0;
+static lv_obj_t *s_wxm_confirm_note, *s_wxm_confirm_btn_lbl;
+static int s_wxm_selected_slot;   /* 0 = none, 1 = factory, 2 = ota_0 */
 
-static void on_boot_weatherxm_factory(lv_event_t *e)
+static lv_obj_t *slot_card(lv_obj_t *list, const char *slot_name, lv_obj_t **desc_out,
+                           lv_event_cb_t cb, void *user)
 {
-    (void)e;
-    int64_t now = esp_timer_get_time();
-    if (s_wxm_factory_armed_us && now - s_wxm_factory_armed_us < 5000000) {
-        set_text(s_wxm_btn_factory_lbl, "Rebooting to WeatherXM...");
-        wg1200_buzzer_beep(120);
-        wxm_boot_return_to_weatherxm();
-        return;
+    lv_obj_t *c = card(list, true);
+    lv_obj_set_layout(c, LV_LAYOUT_NONE);
+    lv_obj_set_height(c, 68);
+    const int text_w = LIST_W - 32;
+
+    char title[48];
+    snprintf(title, sizeof(title), LV_SYMBOL_POWER "  Boot %s", slot_name);
+    lv_obj_t *t = label(c, &lv_font_montserrat_20, COLOR_TEXT, title);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 0, 10);
+
+    lv_obj_t *arrow = label(c, &lv_font_montserrat_16, COLOR_ACCENT, LV_SYMBOL_RIGHT);
+    lv_obj_align(arrow, LV_ALIGN_TOP_RIGHT, 0, 12);
+
+    lv_obj_t *d = label(c, &lv_font_montserrat_16, COLOR_DIM, "");
+    single_line(d, text_w);
+    lv_obj_align(d, LV_ALIGN_BOTTOM_LEFT, 0, -10);
+    if (desc_out) {
+        *desc_out = d;
     }
-    s_wxm_factory_armed_us = now;
-    wg1200_buzzer_beep(30);
-    set_text(s_wxm_btn_factory_lbl, "Tap again to boot WeatherXM");
+    if (cb) {
+        lv_obj_add_event_cb(c, cb, LV_EVENT_CLICKED, user);
+    }
+    return c;
 }
 
-static void on_boot_weatherxm_ota0(lv_event_t *e)
+static void on_select_boot_slot(lv_event_t *e)
 {
-    (void)e;
-    int64_t now = esp_timer_get_time();
-    if (s_wxm_ota0_armed_us && now - s_wxm_ota0_armed_us < 5000000) {
-        wxm_boot_info_t info;
-        wxm_boot_get_info(&info);
-        const esp_partition_t *target = info.alt_part ? info.alt_part : info.wxm_part;
-        if (target) {
-            set_text(s_wxm_btn_ota0_lbl, "Rebooting...");
-            wg1200_buzzer_beep(120);
-            wxm_boot_to_partition(target);
-        }
+    int slot = (int)(intptr_t)lv_event_get_user_data(e);
+    wxm_boot_info_t info;
+    wxm_boot_get_info(&info);
+
+    const esp_partition_t *part = (slot == 1) ? info.factory_part : info.ota0_part;
+    const char *proj = (slot == 1) ? info.factory_project : info.ota0_project;
+    const char *ver = (slot == 1) ? info.factory_version : info.ota0_version;
+    if (!part) {
         return;
     }
-    s_wxm_ota0_armed_us = now;
+
+    s_wxm_selected_slot = slot;
     wg1200_buzzer_beep(30);
-    set_text(s_wxm_btn_ota0_lbl, "Tap again to boot Alternate Slot");
+
+    char prompt[128];
+    snprintf(prompt, sizeof(prompt), "Reboot into %s (%s %s)?",
+             part->label, proj, ver);
+    set_text(s_wxm_confirm_note, prompt);
+    set_text(s_wxm_confirm_btn_lbl, LV_SYMBOL_POWER "  Confirm Reboot");
+
+    lv_obj_add_flag(s_wxm_slots_col, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(s_wxm_confirm_col, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void on_confirm_boot_slot(lv_event_t *e)
+{
+    (void)e;
+    wxm_boot_info_t info;
+    wxm_boot_get_info(&info);
+    const esp_partition_t *target = (s_wxm_selected_slot == 1) ? info.factory_part :
+                                    (s_wxm_selected_slot == 2) ? info.ota0_part : NULL;
+    if (!target) {
+        return;
+    }
+    set_text(s_wxm_confirm_btn_lbl, "Rebooting...");
+    wg1200_buzzer_beep(120);
+    wxm_boot_to_partition(target);
+}
+
+static void on_cancel_boot_slot(lv_event_t *e)
+{
+    (void)e;
+    s_wxm_selected_slot = 0;
+    wg1200_buzzer_beep(20);
+    lv_obj_add_flag(s_wxm_confirm_col, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(s_wxm_slots_col, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void build_weatherxm_page(lv_obj_t *tile)
 {
     lv_obj_t *list;
     s_weatherxm = page(tile, "WEATHERXM", true, &list);
-    s_wxm_factory_armed_us = 0;
-    s_wxm_ota0_armed_us = 0;
-    note(list, "Non-destructive Dual-Boot: WeatherXM keys, NVS & SPIFFS are untouched.");
-    s_wxm_running = info_row(list, "Active Slot");
-    s_wxm_factory = info_row(list, "WeatherXM Slot");
-    s_wxm_ota0 = info_row(list, "Alternate Slot");
-    button(list, LV_SYMBOL_POWER "  Return to WeatherXM", COLOR_OK,
-            on_boot_weatherxm_factory, &s_wxm_btn_factory_lbl);
-    button(list, LV_SYMBOL_REFRESH "  Boot Alternate Slot", COLOR_ACCENT,
-            on_boot_weatherxm_ota0, &s_wxm_btn_ota0_lbl);
-    note(list, "Tap twice within 5s to switch firmware. You can also hold the top hardware button for 5s anytime.");
+    s_wxm_selected_slot = 0;
+
+    s_wxm_slots_col = column(list);
+    note(s_wxm_slots_col, "Tap any firmware slot below to boot from it.");
+    s_wxm_running = info_row(s_wxm_slots_col, "Active (ota_1)");
+    slot_card(s_wxm_slots_col, "factory", &s_wxm_factory, on_select_boot_slot, (void *)(intptr_t)1);
+    slot_card(s_wxm_slots_col, "ota_0", &s_wxm_ota0, on_select_boot_slot, (void *)(intptr_t)2);
+    note(s_wxm_slots_col, "WeatherXM keys, NVS & SPIFFS are untouched. Hold top button 5s anytime for WeatherXM.");
+
+    s_wxm_confirm_col = column(list);
+    lv_obj_add_flag(s_wxm_confirm_col, LV_OBJ_FLAG_HIDDEN);
+    s_wxm_confirm_note = note(s_wxm_confirm_col, "");
+    button(s_wxm_confirm_col, LV_SYMBOL_POWER "  Confirm Reboot", COLOR_OK,
+           on_confirm_boot_slot, &s_wxm_confirm_btn_lbl);
+    button(s_wxm_confirm_col, "Cancel", COLOR_TEXT, on_cancel_boot_slot, NULL);
 }
 
 static void tick_weatherxm(void)
 {
-    int64_t now = esp_timer_get_time();
-    if (s_wxm_factory_armed_us && now - s_wxm_factory_armed_us >= 5000000) {
-        s_wxm_factory_armed_us = 0;
-        set_text(s_wxm_btn_factory_lbl, LV_SYMBOL_POWER "  Return to WeatherXM");
-    }
-    if (s_wxm_ota0_armed_us && now - s_wxm_ota0_armed_us >= 5000000) {
-        s_wxm_ota0_armed_us = 0;
-        set_text(s_wxm_btn_ota0_lbl, LV_SYMBOL_REFRESH "  Boot Alternate Slot");
-    }
-
     wxm_boot_info_t info;
     wxm_boot_get_info(&info);
     char buf[64];
-    set_text(s_wxm_running, "ota_1 (muse_nvs)");
+    set_text(s_wxm_running, "muse-gadget");
 
-    if (info.wxm_part) {
-        snprintf(buf, sizeof(buf), "%s: %s %s",
-                 info.wxm_label, info.wxm_project, info.wxm_version);
+    if (info.factory_part) {
+        snprintf(buf, sizeof(buf), "%s  %s", info.factory_project, info.factory_version);
         set_text(s_wxm_factory, buf);
     } else {
-        set_text(s_wxm_factory, "Unavailable");
+        set_text(s_wxm_factory, "Empty");
     }
 
-    if (info.alt_part) {
-        snprintf(buf, sizeof(buf), "%s: %s %s",
-                 info.alt_label, info.alt_project, info.alt_version);
+    if (info.ota0_part) {
+        snprintf(buf, sizeof(buf), "%s  %s", info.ota0_project, info.ota0_version);
         set_text(s_wxm_ota0, buf);
     } else {
-        set_text(s_wxm_ota0, "None");
+        set_text(s_wxm_ota0, "Empty");
     }
 }
 #endif

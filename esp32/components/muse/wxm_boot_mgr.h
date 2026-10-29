@@ -21,6 +21,14 @@ typedef struct {
     char alt_label[16];
     char alt_project[32];
     char alt_version[32];
+
+    const esp_partition_t *factory_part;
+    char factory_project[32];
+    char factory_version[32];
+
+    const esp_partition_t *ota0_part;
+    char ota0_project[32];
+    char ota0_version[32];
 } wxm_boot_info_t;
 
 /*

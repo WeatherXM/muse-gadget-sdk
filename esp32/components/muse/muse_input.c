@@ -53,6 +53,8 @@
 #endif
 #if CONFIG_MUSE_BOARD_WXM_WG1200
 #include "cJSON.h"
+#include "esp_timer.h"
+#include "boards/board_wxm_wg1200.h"
 #include "muse_settings_ui.h"
 #include "wg1200_weather.h"
 #include "wxm_boot_mgr.h"
@@ -205,6 +207,10 @@ static void aux_button(bool pressed, bool edge)
     static bool hinted;
     static int sleep_in;    /* ticks until a pending single press sleeps */
     static char saved_caption[64];
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    static int64_t press_start_us;
+    static bool boot_triggered;
+#endif
 
     if (sleep_in && --sleep_in == 0) {
         set_asleep(true, muse_board->aux_button);
@@ -213,6 +219,10 @@ static void aux_button(bool pressed, bool edge)
         held = 0;
         hinted = false;
         swallow = muse_state_asleep();
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+        press_start_us = esp_timer_get_time();
+        boot_triggered = false;
+#endif
         if (swallow) {
             set_asleep(false, muse_board->aux_button);
         } else if (sleep_in) {
@@ -222,6 +232,29 @@ static void aux_button(bool pressed, bool edge)
         }
         return;
     }
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    if (pressed) {
+        int64_t held_us = esp_timer_get_time() - press_start_us;
+        if (held_us >= 1500000 && !hinted) {
+            uint32_t v = UINT32_MAX;
+            muse_state_caption(saved_caption, sizeof(saved_caption), &v);
+            muse_state_poke();
+            muse_state_set_caption("HOLD 5S FOR WEATHERXM...");
+            wg1200_buzzer_beep(30);
+            hinted = true;
+        } else if (held_us >= 5000000 && !boot_triggered) {
+            boot_triggered = true;
+            swallow = true;
+            muse_state_poke();
+            wg1200_buzzer_beep(120);
+            wxm_boot_return_to_weatherxm();
+        }
+        return;
+    }
+    if (edge && !pressed && boot_triggered) {
+        return;
+    }
+#endif
     if (pressed && !swallow) {
         if (!muse_board->power_off) {
             return;   /* no hold to power off: a press only sleeps */
@@ -245,6 +278,11 @@ static void aux_button(bool pressed, bool edge)
             sleep_in = DOUBLE_TICKS;
         }
     }
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    else if (edge && !pressed && hinted) {
+        muse_state_set_caption("%s", saved_caption);
+    }
+#endif
 }
 
 /* No touch: the aux button opens the menu and steps down it; any press wakes. */
