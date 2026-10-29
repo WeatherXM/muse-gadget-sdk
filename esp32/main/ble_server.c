@@ -1024,7 +1024,7 @@ void ble_server_start(const char *device_name, const ble_callbacks_t *cb) {
         ESP_LOGE(TAG, "failed to create RX mutex");
         return;
     }
-    s_tx_mutex = xSemaphoreCreateMutex();
+    if (!s_tx_mutex) s_tx_mutex = xSemaphoreCreateMutex();
     s_shutting_down = false;
     s_synced = false;
     s_advertising_enabled = false;

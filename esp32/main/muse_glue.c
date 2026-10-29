@@ -500,7 +500,7 @@ static void keeper_task(void *arg) {
     int64_t away_backoff = AWAY_MIN_US;
     uint32_t pending = KEEP_BLE;
     bool napped = false;
-    bool setup_done = config_setup_complete();
+    bool setup_done = config_setup_complete() || muse_settings_hatch_token_len() > 0;
     if (setup_done && muse_settings_ble_on()) {
         // Registered devices boot with the phone companion off; the settings
         // switch turns it on until the next restart.
@@ -524,7 +524,7 @@ static void keeper_task(void *arg) {
             reload_creds(&joined_gen);
             // Once registered the phone is done with BLE, so stop the
             // companion; the settings switch can turn it back on.
-            bool done = config_setup_complete();
+            bool done = config_setup_complete() || muse_settings_hatch_token_len() > 0;
             if (done && !setup_done && muse_settings_ble_on()) {
                 ESP_LOGI(TAG, "setup complete; turning phone setup BLE off");
                 muse_settings_set_ble_on(false);

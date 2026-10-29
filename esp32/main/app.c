@@ -2375,6 +2375,8 @@ static bool connect_muse_settings_vm_with_gate_held(void) {
 // seldom the internal RAM for a task of its own. So the heartbeat does it (as
 // at boot), retrying until the session runs; from then on the session
 // reconnects by itself.
+void app_ble_companion_set(bool advertise);
+
 static void muse_keep_vm_session(void) {
     static int64_t next_try;
     static int64_t backoff = MUSE_VM_RETRY_MIN_US;
@@ -2406,6 +2408,9 @@ static void muse_keep_vm_session(void) {
     }
     if (!connected && has_hatch_token) {
         connected = connect_muse_settings_vm_with_gate_held();
+        if (connected && !muse_settings_ble_on()) {
+            app_ble_companion_set(false);
+        }
     }
     ui_set_status(connected ? "auth_ok" : "auth_failed");
     led_status_set_state(connected ? LED_STATE_AUTH_OK : LED_STATE_ERROR);
@@ -2541,7 +2546,16 @@ bool app_hatch_vm_credentials(const char *want_vm, char *vm_id, size_t id_cap,
 void app_ble_companion_set(bool advertise) {
     if (advertise) start_ble_setup_server_if_needed();
     ble_server_set_companion_advertising(advertise);
-    if (config_setup_complete()) ui_set_ble(advertise ? "companion" : "off");
+    bool setup_done = config_setup_complete() || muse_settings_hatch_token_len() > 0;
+    if (!advertise && setup_done) {
+        ble_server_stop_advertising(false);
+        if (s_ble_started && ble_server_power_off()) {
+            s_ble_started = false;
+            heap_snapshot("after ble_power_off");
+        }
+        setup_stage_set("done");
+    }
+    if (setup_done) ui_set_ble(advertise ? "companion" : "off");
 }
 
 bool app_confirm_pairing_press(void) {
@@ -2869,6 +2883,11 @@ void app_run(void) {
         }
     }
 
+#if CONFIG_MUSE_ENABLED
+    if (!setup_complete && muse_settings_hatch_token_len() > 0) {
+        setup_complete = true;
+    }
+#endif
     s_setup_stage = setup_complete ? "done" : "idle";
 #if CONFIG_MUSE_ENABLED
     // Muse's talk button confirms pairing and its menu resets setup; the Link
@@ -2915,7 +2934,8 @@ void app_run(void) {
 #if CONFIG_MUSE_ENABLED && CONFIG_SPIRAM
         // Muse may turn on its BLE companion later. The controller needs a
         // 30 KB internal block that TLS and the VM session leave fragmented,
-        // so bring the stack up now; it stays silent until advertising is on.
+        // so bring the stack up only when Phone Setup is enabled.
+        if (muse_settings_ble_on())
         start_ble_setup_server_if_needed();
 #endif
     }

@@ -41,6 +41,7 @@ eim_config.toml
 # Secure Boot signing keys — materialized in CI from secrets, never committed.
 release_signing_key.pem
 factory_test_signing_key.pem
+secure_boot_signing_key.pem
 
 .DS_Store
 
