@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Muse Gadgets — WeatherXM D1 (`WG1200`) Physical AI & Weather Appliance
+# Give Your AI Agent Eyes on the Sky & a Rooftop Weather Station — Muse Gadget SDK for WeatherXM D1 (`WG1200`)
 
 > WeatherXM's fork of [Meta's Muse Gadgets SDK](https://github.com/facebookincubator/muse-gadget-sdk), porting it to the WeatherXM D1 gateway. The upstream README follows [below](#about-the-muse-gadgets-sdk-upstream).
 
 <p align="center">
-  <b>Give your personal AI agent real outdoor senses, eyes on the sky through your own cameras, a 480×480 desk canvas and a Sub-GHz LoRa radio—without losing your stock weather station OS.</b><br>
-  Built for the <a href="https://weatherxm.com/stations/d1-wifi/"><b>WeatherXM D1 Wi-Fi Weather Station (<code>WS1001</code> + <code>WG1200</code>)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://weatherxm.github.io/muse-gadget-sdk/"><b>⚡ Web Flasher</b></a>
+  <b>Most AI agents can tell you the forecast. This one looks at the sky outside your window—and measures the actual weather on your roof.</b><br>
+  Give Meta's open-source Muse agent live Sub-GHz LoRa rooftop sensors (<code>sensors.read</code>), local sky-camera snapshots without port forwarding (<code>lan.fetch</code>), and a <code>480×480</code> generative canvas (<code>display.draw_file</code>)—in a reversible dual-boot (<code>ota_1</code>) that leaves your stock WeatherXM OS untouched.<br>
+  Built for the <a href="https://weatherxm.com/product/wb1200-wifi-d1/"><b>WeatherXM D1 Wi-Fi Station (<code>WS1001</code> + <code>WG1200</code> — $50 off for Muse builders with code <code>MUSE50</code> → $149)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://weatherxm.github.io/muse-gadget-sdk/"><b>⚡ 1-Click Web Flasher</b></a>
 </p>
 
 | [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) + a LAN camera                                                                                                         | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot)                                                                                                                                                                     |
@@ -39,50 +40,48 @@ limitations under the License.
 
 ---
 
-## Why Turn a Weather Station into an AI Agent Appliance?
+## Why Give an AI Agent a Rooftop Weather Station & a Sky Camera?
 
-Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable with no real-world sensors, while most commercial desk displays cost $180+ just to show static web widgets. Porting the Muse ESP32 SDK to the **[WeatherXM D1 (`WG1200`)](https://weatherxm.com/stations/d1-wifi/)** unlocks four practical capabilities in a single desktop enclosure:
+Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable with no real-world sensors, while most commercial desk displays cost $180+ just to show static web widgets. Porting the Muse ESP32 SDK to the **[WeatherXM D1 (`WG1200`)](https://weatherxm.com/product/wb1200-wifi-d1/)** *(use code **`MUSE50`** for $50 off → **$149**)* unlocks four capabilities in a single desktop console:
 
 1. **Physical Ground Truth + Eyes on Your Home Network (`sensors.read` + `lan.fetch`):**
-   Cloud AI agents are typically blind to the actual microclimate outside your window—relying on coarse city forecasts while a 45 km/h gust hits your balcony or rain starts on the patio. The `WG1200` gives the agent live roof telemetry (`sensors.read`), finds the devices on your Wi-Fi (`device.discover`), and reads from them on its behalf (`lan.fetch`): a camera's view of the sky, a solar inverter's output, a smart-home hub's state. See [Eyes on the Sky](#eyes-on-the-sky-station--camera--cloud-analytics--collaborative-nowcasts).
-2. **A Dynamic `480×480` Visual Canvas for AI & Automation (Beyond Static Numbers):**
-   Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Any personal AI agent, local home-automation hub, or custom script can turn live weather into bespoke infographics, storm alerts, camera snapshots fetched with `lan.fetch`, solar PV gauges, or generative artwork on the fly.
-3. **Turnkey Dual-Boot Appliance (`Zero Risk to Stock Firmware`):**
-   Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs cleanly into the secondary firmware slot alongside your existing WeatherXM OS. Your station identity, settings, and stock WeatherXM firmware remain 100% untouched—reboot back and forth in seconds from the touchscreen, top button, or a remote agent command.
+   Cloud AI agents are typically blind to the actual microclimate outside your window—relying on coarse city forecasts while a 45 km/h gust hits your balcony or rain starts on the patio. The `WG1200` gives the agent live roof telemetry (`sensors.read`), finds the devices on your Wi-Fi (`device.discover`), and reads from them on its behalf (`lan.fetch`): a camera's view of the sky, a solar inverter's output, a smart-home hub's state. See [Eyes on the Sky](#eyes-on-the-sky-lanfetch--rooftop-ground-truth-sensorsread).
+2. **The Screen is a `480×480` Canvas, Not a Static Dashboard (`display.draw_file`):**
+   Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Swipe down (or ask Muse), and it turns your exact live station readings into bespoke `480×480` artwork—Cyberpunk Neon, Ukiyo-e, Studio Ghibli, an isometric Acropolis rooftop diorama—or live camera snapshots and storm alerts on the fly.
+3. **Reversible Dual-Boot (`ota_1` — Stock WeatherXM Firmware Preserved):**
+   Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs into the secondary `ota_1` firmware slot (`0x820000`) with an isolated `muse_nvs` partition. Your stock WeatherXM firmware, station identity, hardware certificates, and NVS remain untouched—hold the top button for 10 seconds (or tap `Settings → WeatherXM`) to reboot right back. Works on both the **$199 Network Edition** (`$149` with `MUSE50`) and the **$299 Open Edition** (`$249` with `MUSE50`).
 4. **Long-Range Sub-GHz LoRa Meets Personal AI:**
-   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—and lays the foundation for bridging long-range outdoor field sensors and peer-to-peer LoRa mesh telemetry directly into personal AI workflows.
+   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio (`SX1262`) alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—bridging outdoor field telemetry directly into personal AI workflows.
 
 ---
 
-## Eyes on the Sky: Station + Camera → Cloud Analytics → Collaborative Nowcasts
+## Eyes on the Sky (`lan.fetch`) + Rooftop Ground Truth (`sensors.read`)
 
-### A cloud agent that can see your sky!
+### 1. Teaching a Cloud Agent to See Your Home LAN (No Port Forwarding, No Pi)
 
-A cloud AI agent normally can't see anything on your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor's camera cloud, or exposing the camera to the internet. With `lan.fetch`, the `WG1200` does the fetching for it. Muse asks the gateway for `http://<camera>/snapshot.jpg`, the gateway GETs it on the LAN and returns the JPEG over the encrypted session it already holds to Muse's VM. Nothing listens for inbound connections, and no ports are opened.
+A cloud AI agent normally can't see anything on your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor's camera cloud, or a Raspberry Pi bridge. With `lan.fetch`, the `WG1200` does the fetching itself. Muse asks the gateway for `http://<camera>/snapshot.jpg`, the ESP32-S3 GETs it on the LAN (~200 ms), verifies its SHA-256 digest in PSRAM, and returns the JPEG over the encrypted session it already holds to Muse's VM. No inbound ports are opened and no Pi is required.
 
-What makes that more than a webcam viewer is where it sits: the same device holds **time-aligned, co-located ground truth** from the rooftop station. One agent turn can combine:
+What makes that more than a webcam viewer is where it sits: the same device holds **time-aligned, co-located ground truth** from the rooftop station. One agent turn combines:
 
-- a frame of the sky or the garden from any camera with an HTTP snapshot URL (Thingino, Hikvision, Dahua, Reolink, Axis, ESP32-CAM, or RTSP cameras through go2rtc), and
-- the outdoor readings from the station's latest packet: wind speed, gust and direction, rain rate, solar irradiance, UV, temperature, humidity and pressure (`sensors.read`).
+- a frame of the sky or garden from a local IP camera with an HTTP snapshot URL (tested with Sonoff/Thingino, plus Hikvision, Dahua, Reolink, Axis, ESP32-CAM, or RTSP cameras through go2rtc), and
+- the outdoor readings from the station's latest LoRa packet every ~20s: wind speed, gust and direction, rain rate, solar irradiance (`W/m²`), UV, temperature, humidity and indoor `BMP390` barometric pressure (`sensors.read`).
 
-### Cloud analytics on the frame and the telemetry
+### 2. Multi-Modal Ground Truth: Sky Frames + Sub-GHz LoRa Telemetry
 
-Muse's VM can run code and vision models on every frame, so the analysis happens in the cloud, not on the ESP32:
+Muse's VM runs code and vision models on every frame alongside live rooftop telemetry:
 
-- **Cross-checked conditions:** "overcast" from the image against the irradiance drop, "raining" against rain rate and drops on the lens, fog or low visibility against humidity and temperature.
-- **Events the sensors miss:** snow on the ground, hail, a storm cell building on the horizon, smoke, a frozen or misaligned sensor.
-- **Labelled data for free:** every frame stored with its sensor readings and timestamp becomes training data for local sky and precipitation models.
-- **Results back on the desk:** a `480×480` card (`display.draw_file`), an alert with a chime (`wg1200.notify`), or a message on your phone.
+- **Cross-checked conditions:** "overcast" from the sky frame against the `W/m²` solar irradiance drop, "raining" against rain rate and drops on the lens, fog or low visibility against humidity and dewpoint spread.
+- **Events sensors alone miss:** a storm cell building on the horizon, virga, snow on the ground, hail, smoke plumes, or a shaded/obstructed sensor.
+- **Self-labelled physical dataset:** every sky frame paired with co-located `W/m²`, pressure, wind and rain readings becomes grounded training and evaluation data.
+- **Rendered straight back on the desk:** a `480×480` card (`display.draw_file`), a sky-frame overlay, an alert with a buzzer chime (`wg1200.notify`), or a reply on your phone.
 
-### Many stations, many agents: collaborative nowcasting
+### 3. Next Frontier: Self-Assembling Agent Nowcasts Graded by Physical Sensors
 
-WeatherXM already runs a network of community weather stations. Give each one a camera and its own agent, and the agents can share what they see:
+What happens when neighboring WeatherXM stations (~1 km apart)—each equipped with a sky camera and run by its own independent Muse agent—discover each other and coordinate?
 
-- **Cloud motion:** timestamped frames from neighbouring cameras give cloud-shadow direction and speed, and two cameras at known positions can triangulate cloud height.
-- **Rain fronts:** rain-rate onset at upwind stations, with wind direction, gives an arrival estimate for the next street over.
-- **Solar output:** cloud-shadow tracks plus irradiance give short-term solar forecasts for nearby PV owners.
-
-Combined, those are **hyperlocal nowcasts (0–60 minutes)** at street scale, built from sensors and cameras on the ground rather than radar or satellite pixels.
+- **Signed rendezvous & discovery:** nearby station agents find each other and advertise what they can observe—camera bearing/FOV, live sensor channels, and scored forecast history—without a central planner.
+- **Peer-to-peer agent tasking:** *"Capture the sky at T+90s, signed—I'll do the same for you."* Synchronized sky views from two rooftops plus wind vectors yield stereo cloud-base height, optical flow, and a **shadow-arrival countdown** drawn directly onto the neighboring `WG1200` screen.
+- **Predictions graded by the physical world:** the hardest problem in AI agents is grounded evaluation. Here, every short-term prediction is automatically scored against physical ground truth: *did the rooftop solar irradiance (`W/m²`) actually drop at the predicted minute? Did rain onset hit when forecasted?* Error bars get published next to the wins, turning verified hyperlocal nowcasts into a service other agents and solar PV systems can subscribe to.
 
 ### Today vs next
 
