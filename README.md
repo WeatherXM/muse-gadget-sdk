@@ -17,18 +17,23 @@ limitations under the License.
 # Muse Gadgets — WeatherXM D1 (`WG1200`) Physical AI & Weather Appliance
 
 <p align="center">
-  <img src=".github/images/wg1200-weather-cards-collage.jpeg" width="900" alt="Unique AI-generated 480x480 weather cards rendered on the WeatherXM WG1200 from live WS1001/WS1300 LoRa weather station telemetry">
-</p>
-
-<p align="center">
   <b>Give your personal AI agent real outdoor senses, eyes on the sky through your own cameras, a 480×480 desk canvas and a Sub-GHz LoRa radio—without losing your stock weather station OS.</b><br>
   Built for the <a href="https://weatherxm.com/stations/d1-wifi/"><b>WeatherXM D1 Wi-Fi Weather Station (<code>WS1001</code> + <code>WG1200</code>)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a>
 </p>
 
-| [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/)                                                                                                                        | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot)                                                                                                                                                                     |
+| [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) + a LAN camera                                                                                                         | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot)                                                                                                                                                                     |
 |:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station.jpg" width="410" alt="WeatherXM D1 Outdoor Solar Station and WG1200 4-inch Touchscreen Gateway"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM">                                                                            |
-| Solar-powered 8-sensor outdoor array (`WS1001` / `WS1300`) transmitting every ~20s over private Sub-GHz LoRa P2P (up to 1 km) to the indoor `WG1200` 4.0" touchscreen console.                       | Paired over an encrypted Noise session to the Muse VM—answering live weather queries (`sensors.read`), fetching camera snapshots from the LAN (`lan.fetch`), and rendering generative `480×480` weather cards on swipe. |
+| <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station-camera.jpg" width="410" alt="WeatherXM D1 outdoor solar station and WG1200 4-inch touchscreen gateway, with a Sonoff IP camera running Thingino"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM">                                                                            |
+| Solar-powered 8-sensor outdoor array (`WS1001` / `WS1300`) transmitting every ~20s over private Sub-GHz LoRa P2P (up to 1 km) to the indoor `WG1200` 4.0" touchscreen console. Add any camera with an HTTP snapshot URL on the same Wi-Fi, here a Sonoff running [Thingino](https://github.com/themactep/thingino-firmware). | Paired over an encrypted Noise session to the Muse VM—answering live weather queries (`sensors.read`), fetching camera snapshots from the LAN (`lan.fetch`), and rendering generative `480×480` weather cards on swipe. |
+| <img src=".github/images/sky-camera-frame-480.jpg" width="480" alt="Rooftop sky camera frame over Athens, 1 November 2026 16:56: broken cumulus with blue gaps and low sun, weather station masts in the foreground"> | <img src=".github/images/wg1200-sky-frame.jpg" width="410" alt="The same sky camera frame drawn on the WG1200 screen by Muse with display.draw_file"> |
+| **What Muse sees:** the rooftop camera's 1920×1080 frame, fetched by Muse through the `WG1200` (`lan.fetch`, about 150 KB in ~200 ms) and analysed in its VM next to the station's wind, rain and irradiance readings. | **And sends back:** the same frame drawn on the `WG1200` with `display.draw_file`. The camera never leaves the home network and no ports are opened. |
+| <img src=".github/images/wg1200-card-cyberpunk.jpg" width="410" alt="The WG1200 on a desk showing a cyberpunk-neon Athens weather card Muse generated: 21.6 °C, humidity 64%, pressure 1009 hPa, wind, rain and UV"> | <img src=".github/images/wg1200-card-diorama-480.jpg" width="410" alt="A 480x480 isometric-diorama Athens weather card Muse generated: a rooftop weather station beside the Acropolis, 18.4 °C, humidity 83%, pressure 1009 hPa"> |
+| **Draws whatever it wants:** the `480×480` TFT is Muse's canvas, not a fixed firmware screen. Muse composes images on the fly in its VM and draws them with `display.draw_file` or `display.draw_url`: weather cards from the station's live readings in any style, a camera frame, a chart, an alert. | **Cyberpunk neon, isometric diorama, or anything else:** each card is generated on demand from the latest `sensors.read` values (temperature, humidity, pressure, wind, rain, UV). Swipe down on the screen for a new one, or ask Muse for a style. |
+
+<p align="center">
+  <img src=".github/images/wg1200-weather-cards-collage.jpeg" width="900" alt="Unique AI-generated 480x480 weather cards rendered on the WeatherXM WG1200 from live WS1001/WS1300 LoRa weather station telemetry"><br>
+  <sub>More cards Muse has drawn on the <code>WG1200</code> from live station readings.</sub>
+</p>
 
 ---
 
