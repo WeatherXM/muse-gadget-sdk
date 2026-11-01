@@ -75,9 +75,11 @@ Muse's VM runs code and vision models on every frame alongside live rooftop tele
 - **Self-labelled physical dataset:** every sky frame paired with co-located `W/m²`, pressure, wind and rain readings becomes grounded training and evaluation data.
 - **Rendered straight back on the desk:** a `480×480` card (`display.draw_file`), a sky-frame overlay, an alert with a buzzer chime (`wg1200.notify`), or a reply on your phone.
 
-### 3. Next Frontier: Self-Assembling Agent Nowcasts Graded by Physical Sensors
+### 3. Next Frontier: An Agentic `SETI@home` for Weather Nowcasting (Graded by Physical Sensors)
 
-What happens when WeatherXM stations—from neighboring rooftops (~1 km apart) to regional stations linked over **multi-hop Meshtastic / MeshCore LoRa mesh across 100s of km** (**[WeatherXM D2 Mesh](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**)—each run their own independent Muse agent, discover each other, and coordinate?
+Think of it as an **agentic `SETI@home` for hyperlocal weather nowcasting**—where instead of just donating idle CPU cycles, home AI agents contribute **live rooftop telemetry, calibrated sky-camera views, and peer-to-peer coordination**.
+
+What happens when WeatherXM stations—from neighboring rooftops (~1 km apart) to regional nodes linked over **multi-hop Meshtastic / MeshCore LoRa mesh across 100s of km** (**[WeatherXM D2 Mesh](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**)—each run their own independent Muse agent, discover each other, and coordinate?
 
 - **Signed rendezvous & mesh discovery:** station agents find each other (over the internet or off-grid via multi-hop LoRa mesh) and advertise what they can observe—camera bearing/FOV, live sensor channels, and scored forecast history—without a central planner.
 - **Peer-to-peer agent tasking:** *"Capture the sky at T+90s, signed—I'll do the same for you."* Synchronized sky views from neighboring rooftops plus wind vectors yield stereo cloud-base height, optical flow, and a **shadow-arrival countdown** drawn directly onto the neighboring `WG1200` screen, while upwind mesh nodes dozens to hundreds of kilometers away provide early storm-front arrival alerts.
