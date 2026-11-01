@@ -25,10 +25,10 @@ limitations under the License.
   Built for the <a href="https://weatherxm.com/stations/d1-wifi/"><b>WeatherXM D1 Wi-Fi Weather Station (<code>WS1001</code> + <code>WG1200</code>)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a>
 </p>
 
-| [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot) |
-| :---: | :---: |
-| <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station.jpg" width="410" alt="WeatherXM D1 Outdoor Solar Station and WG1200 4-inch Touchscreen Gateway"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM"> |
-| Solar-powered 8-sensor outdoor array (`WS1001` / `WS1300`) transmitting every ~20s over private Sub-GHz LoRa P2P (up to 1 km) to the indoor `WG1200` 4.0" touchscreen console. | Paired over an encrypted Noise session to the Muse VM—answering live weather queries (`sensors.read`), fetching camera snapshots from the LAN (`lan.fetch`), and rendering generative `480×480` weather cards on swipe. |
+| [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/)                                                                                                                        | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot)                                                                                                                                                                     |
+|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+| <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station.jpg" width="410" alt="WeatherXM D1 Outdoor Solar Station and WG1200 4-inch Touchscreen Gateway"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM">                                                                            |
+| Solar-powered 8-sensor outdoor array (`WS1001` / `WS1300`) transmitting every ~20s over private Sub-GHz LoRa P2P (up to 1 km) to the indoor `WG1200` 4.0" touchscreen console.                       | Paired over an encrypted Noise session to the Muse VM—answering live weather queries (`sensors.read`), fetching camera snapshots from the LAN (`lan.fetch`), and rendering generative `480×480` weather cards on swipe. |
 
 ---
 
@@ -49,14 +49,14 @@ Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable wit
 
 ## Eyes on the Sky: Station + Camera → Cloud Analytics → Collaborative Nowcasts
 
-### What's new: a cloud agent that can see your sky
+### A cloud agent that can see your sky!
 
 A cloud AI agent normally can't see anything on your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor's camera cloud, or exposing the camera to the internet. With `lan.fetch`, the `WG1200` does the fetching for it. Muse asks the gateway for `http://<camera>/snapshot.jpg`, the gateway GETs it on the LAN and returns the JPEG over the encrypted session it already holds to Muse's VM. Nothing listens for inbound connections, and no ports are opened.
 
 What makes that more than a webcam viewer is where it sits: the same device holds **time-aligned, co-located ground truth** from the rooftop station. One agent turn can combine:
 
 - a frame of the sky or the garden from any camera with an HTTP snapshot URL (Thingino, Hikvision, Dahua, Reolink, Axis, ESP32-CAM, or RTSP cameras through go2rtc), and
-- the outdoor readings from the station's latest packet, at most ~20 s old: wind speed, gust and direction, rain rate, solar irradiance, UV, temperature, humidity and pressure (`sensors.read`).
+- the outdoor readings from the station's latest packet: wind speed, gust and direction, rain rate, solar irradiance, UV, temperature, humidity and pressure (`sensors.read`).
 
 ### Cloud analytics on the frame and the telemetry
 
@@ -79,23 +79,23 @@ Combined, those are **hyperlocal nowcasts (0–60 minutes)** at street scale, bu
 
 ### Today vs next
 
-| Works today on the `WG1200` | Next steps (not built yet) |
-|---|---|
-| Muse fetches a camera frame through the gateway (`lan.fetch`), tested with a Thingino camera | Agents discovering and talking to each other (rendezvous) |
-| Live station telemetry from the same device (`sensors.read`) | Signed frames and readings, so other agents can trust where data came from |
-| Analysis in Muse's VM, results drawn on the gateway's screen | Multi-camera cloud tracking, stereo cloud height and the nowcast service itself |
+| Works today on the `WG1200`                                                                  | Next steps                                                                                  |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Muse fetches a camera frame through the gateway (`lan.fetch`), tested with a Thingino camera | Agents discovering and talking to each other (**rendezvous**)                               |
+| Live station telemetry from the same device (`sensors.read`)                                 | Signed frames and readings, so other agents can trust where data came from                  |
+| Analysis in Muse's VM, results drawn on the gateway's screen                                 | Multi-camera cloud tracking, stereo cloud height and the **weather nowcast service** itself |
 
 See [Cameras & home-network devices](#cameras--home-network-devices-lanfetch) for how to call `lan.fetch`.
 
 ---
 
-## Highlights & Bells and Whistles (`wxm-wg1200`)
+## Highlights  (`wxm-wg1200`)
 
 - **Live Outdoor Weather Station + Rain Tracking:**
   - Receives real-time outdoor temperature, humidity, wind speed, wind gusts, wind direction, UV index, solar irradiance, and light directly from your rooftop station (`WS1001` / `WS1300`), paired with indoor barometric pressure (`hPa`).
   - Tracks live **Rain Rate (`mm/h`)** and **Daily Rain Accumulation (`mm`)** across reboots, while automatically locking onto your own outdoor station so neighboring stations never mix into your data.
 - **Swipe-Down Generative `480×480` Weather Cards:**
-  - **Swipe down anywhere on the main Muse face** (or over an active card, or tap **Draw Weather Card** in `Settings → Weather`) to turn your live outdoor weather into a one-of-a-kind `480×480` artwork.
+  - **Swipe down anywhere on the main Muse face** (or over an active card, or tap **Draw Weather Card** in `Settings → Weather`) to turn your live outdoor weather into a one-of-a-kind `480×480` artwork. This is a quick check Muse connection is working.
   - Each swipe pairs your exact outdoor conditions with a randomized visual style (*Ukiyo-e woodblock*, *Studio Ghibli anime*, *Art Deco*, *Synthwave*, *16-bit pixel RPG*, *Bauhaus poster*, *Watercolor field notes*, *Nautical chart*, and more) and streams the finished card straight to the screen.
 - **No-Mic Touchscreen Quick Actions & Live On-Screen Replies:**
   - Built for a mic-less desk console: one-tap touch actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) automatically include your live outdoor weather and send the request to Muse.
@@ -142,6 +142,7 @@ python3 esp32/tools/muse/muse_setup_server.py
 5. When flashing finishes, **close the installer dialog** — the Web Flasher automatically sends `>sdk_token=mgst_...` over USB serial, stores it in `muse_nvs`, and reboots the gateway into Muse (`MuseGadget-XXXXXX`).
 
 > **CLI Alternative:** You can also back up and flash from the terminal using [`esp32/tools/wg1200_dualboot.sh`](esp32/tools/wg1200_dualboot.sh):
+> 
 > ```bash
 > ./esp32/tools/wg1200_dualboot.sh backup /dev/cu.usbserial-1110
 > WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh build
@@ -176,21 +177,23 @@ Because the stock WeatherXM OS in `ota_0` (`0x420000`) and `factory` (`0x20000`)
 2. **Physical Top Button (10-Second Hold):** Press and hold the **top physical button (`GPIO38`) for 10 seconds** (beeps at 1.5 s and 5 s, then reboots straight into WeatherXM at 10 s). Muse's setup is kept. Releasing between 5 and 10 s instead resets Muse (see [Top button](#top-button)).
 3. **Browser Web Flasher (`http://localhost:8099/web-flasher/`):** Expand **WeatherXM WG1200 — Return to WeatherXM**, click **Return WG1200 to WeatherXM**, and select the USB port (sends `>boot.weatherxm` over USB serial at `115200` baud).
 4. **CLI Script (works even if Muse is not running):**
+   
    ```bash
    ./esp32/tools/wg1200_dualboot.sh boot-weatherxm /dev/cu.usbserial-1110
    ```
+   
    *(To switch back to Muse later without reflashing, run `./esp32/tools/wg1200_dualboot.sh boot-muse /dev/cu.usbserial-1110`.)*
 
 ---
 
 ### Top button
 
-| Hold the top button (`GPIO38`) | What happens |
-|---|---|
-| Short press | Sleep / wake the display (double press: toggle BLE phone setup) |
-| 1.5 s | Beep, and the screen shows `HOLD 5S: RESET MUSE / 10S: WEATHERXM` (let go to cancel) |
-| 5 s, then release | **Resets Muse**: unpairs Link, forgets Wi-Fi, clears the Muse token and VM, and restarts ready for 1-click provisioning |
-| 10 s | **Reboots into stock WeatherXM**, keeping Muse's setup for `boot-muse` later |
+| Hold the top button (`GPIO38`) | What happens                                                                                                            |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Short press                    | Sleep / wake the display (double press: toggle BLE phone setup)                                                         |
+| 1.5 s                          | Beep, and the screen shows `HOLD 5S: RESET MUSE / 10S: WEATHERXM` (let go to cancel)                                    |
+| 5 s, then release              | **Resets Muse**: unpairs Link, forgets Wi-Fi, clears the Muse token and VM, and restarts ready for 1-click provisioning |
+| 10 s                           | **Reboots into stock WeatherXM**, keeping Muse's setup for `boot-muse` later                                            |
 
 The reset waits for the release, so holding on to 10 s never resets Muse.
 
@@ -211,6 +214,30 @@ Muse runs in a cloud VM and can't reach your home network. The WG1200 can: `lan.
 - **Options:** `max_bytes` (default 1 MiB, up to 2 MiB), `timeout_ms` (default 15 s), `path` on the VM, `delivery` (`auto`, `file`, `inline`).
 - **Bench test over USB:** `>lan.fetch {"url":"http://…"}` on the serial console runs the same command and prints `@lan.fetch {…}`.
 
+
+
+
+
+
+
+
+
+
+
+
+
+(end of WeatherXM WG1200 specific content)
+
+
+
+
+
+
+
+
+
+
+
 ---
 
 <p align="center">
@@ -229,10 +256,10 @@ We open sourced the SDKs and firmware here. It's built by hackers, for hackers,
 just for fun. Side effects of tinkering may include bricked boards, voided
 warranties, brownouts, or bankruptcies. Proceed at your own risk!
 
-| | |
-|---|---|
-| [**ESP32 Device SDK**](esp32) | Connect your ESP32 board to Muse through our open source SDK. Throw in a screen to show images, add audio in and out, or wire up other sensors. |
-| [**Linux Device SDK**](linux) | Turn that spare Raspberry Pi or Linux box into a Muse gadget. Hack in your own commands to let Muse handle sysadmin chores or your Home Assistant setup. |
+|                                                                                  |                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [**ESP32 Device SDK**](esp32)                                                    | Connect your ESP32 board to Muse through our open source SDK. Throw in a screen to show images, add audio in and out, or wire up other sensors.                                                               |
+| [**Linux Device SDK**](linux)                                                    | Turn that spare Raspberry Pi or Linux box into a Muse gadget. Hack in your own commands to let Muse handle sysadmin chores or your Home Assistant setup.                                                      |
 | [**Muse Gadgets Test**](android/musegadgetstest) ([iPhone](ios/musegadgetstest)) | Stream your phone's camera, or a clip, to an ESP32 gadget's screen over Wi-Fi: H.264 or VP8 decoded on the board, 30 fps on the round 466 px boards. [`protocols/VIDEO.md`](protocols/VIDEO.md) explains how. |
 
 Before you flash or pair a gadget, get an
@@ -265,18 +292,18 @@ Muse Gadgets is licensed under the Apache License, Version 2.0, found in
 [`LICENSE`](LICENSE), except for these third-party files, which keep their
 upstream licenses:
 
-| Path | Upstream | License |
-|---|---|---|
-| [`esp32/components/minimp3/include/minimp3.h`](esp32/components/minimp3) | [lieff/minimp3](https://github.com/lieff/minimp3) | CC0-1.0, see [`LICENSE`](esp32/components/minimp3/LICENSE) |
-| [`esp32/components/muse/boards/ostb_echoear_display_init.h`](esp32/components/muse/boards/ostb_echoear_display_init.h) | [78/xiaozhi-esp32 ESP-VoCat panel sequence](https://github.com/78/xiaozhi-esp32/blob/0d576d3d4c049c6f55eaf879725dc23e516511b4/main/boards/espressif/esp-vocat/esp_vocat.cc) | MIT, retained in the file header |
-| JD9853A initialization sequence in [`board_seeed_xiao_s3_147.c`](esp32/components/muse/boards/board_seeed_xiao_s3_147.c) | [Seeed-Studio/Seeed_GFX2](https://github.com/Seeed-Studio/Seeed_GFX2) | MIT, see [`Seeed_GFX2.txt`](esp32/devices/licenses/Seeed_GFX2.txt) |
-| [`esp32/main/pixel_font.c`](esp32/main/pixel_font.c) | Adafruit GFX `glcdfont.c` | BSD-2-Clause, in the file header |
-| [`esp32/components/muse/eink/fonts/montserrat.ttf`](esp32/components/muse/eink/fonts) | Montserrat Medium, via LVGL v9.5.0 | SIL Open Font License 1.1 |
-| [`esp32/components/muse/eink/fonts/unscii.ttf`](esp32/components/muse/eink/fonts) | unscii-8 | Public domain |
-| [`esp32/components/muse/eink/fonts/symbols.ttf`](esp32/components/muse/eink/fonts) | Font Awesome 5 Free, via LVGL v9.5.0 | SIL Open Font License 1.1 (icons CC BY 4.0) |
-| [`esp32/main/epd_ssd1677.c`](esp32/main/epd_ssd1677.c) | Seeed-reTerminal-E10xx-Firmware's SSD1677 refresh sequence | MIT, retained in the file header |
-| [`esp32/components/tinyh264/src`](esp32/components/tinyh264) | the Android Open Source Project's H.264 decoder, via [udevbe/tinyh264](https://github.com/udevbe/tinyh264) | Apache-2.0, AOSP's copyright, see [`LICENSE`](esp32/components/tinyh264/LICENSE) |
-| [`esp32/components/libvpx_vp8/src`](esp32/components/libvpx_vp8) | [libvpx](https://chromium.googlesource.com/webm/libvpx) v1.16.0's VP8 decoder, trimmed | BSD-3-Clause, the WebM Project authors' copyright, see [`LICENSE`](esp32/components/libvpx_vp8/LICENSE), with Google's patent grant in [`PATENTS`](esp32/components/libvpx_vp8/PATENTS) |
+| Path                                                                                                                     | Upstream                                                                                                                                                                    | License                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`esp32/components/minimp3/include/minimp3.h`](esp32/components/minimp3)                                                 | [lieff/minimp3](https://github.com/lieff/minimp3)                                                                                                                           | CC0-1.0, see [`LICENSE`](esp32/components/minimp3/LICENSE)                                                                                                                              |
+| [`esp32/components/muse/boards/ostb_echoear_display_init.h`](esp32/components/muse/boards/ostb_echoear_display_init.h)   | [78/xiaozhi-esp32 ESP-VoCat panel sequence](https://github.com/78/xiaozhi-esp32/blob/0d576d3d4c049c6f55eaf879725dc23e516511b4/main/boards/espressif/esp-vocat/esp_vocat.cc) | MIT, retained in the file header                                                                                                                                                        |
+| JD9853A initialization sequence in [`board_seeed_xiao_s3_147.c`](esp32/components/muse/boards/board_seeed_xiao_s3_147.c) | [Seeed-Studio/Seeed_GFX2](https://github.com/Seeed-Studio/Seeed_GFX2)                                                                                                       | MIT, see [`Seeed_GFX2.txt`](esp32/devices/licenses/Seeed_GFX2.txt)                                                                                                                      |
+| [`esp32/main/pixel_font.c`](esp32/main/pixel_font.c)                                                                     | Adafruit GFX `glcdfont.c`                                                                                                                                                   | BSD-2-Clause, in the file header                                                                                                                                                        |
+| [`esp32/components/muse/eink/fonts/montserrat.ttf`](esp32/components/muse/eink/fonts)                                    | Montserrat Medium, via LVGL v9.5.0                                                                                                                                          | SIL Open Font License 1.1                                                                                                                                                               |
+| [`esp32/components/muse/eink/fonts/unscii.ttf`](esp32/components/muse/eink/fonts)                                        | unscii-8                                                                                                                                                                    | Public domain                                                                                                                                                                           |
+| [`esp32/components/muse/eink/fonts/symbols.ttf`](esp32/components/muse/eink/fonts)                                       | Font Awesome 5 Free, via LVGL v9.5.0                                                                                                                                        | SIL Open Font License 1.1 (icons CC BY 4.0)                                                                                                                                             |
+| [`esp32/main/epd_ssd1677.c`](esp32/main/epd_ssd1677.c)                                                                   | Seeed-reTerminal-E10xx-Firmware's SSD1677 refresh sequence                                                                                                                  | MIT, retained in the file header                                                                                                                                                        |
+| [`esp32/components/tinyh264/src`](esp32/components/tinyh264)                                                             | the Android Open Source Project's H.264 decoder, via [udevbe/tinyh264](https://github.com/udevbe/tinyh264)                                                                  | Apache-2.0, AOSP's copyright, see [`LICENSE`](esp32/components/tinyh264/LICENSE)                                                                                                        |
+| [`esp32/components/libvpx_vp8/src`](esp32/components/libvpx_vp8)                                                         | [libvpx](https://chromium.googlesource.com/webm/libvpx) v1.16.0's VP8 decoder, trimmed                                                                                      | BSD-3-Clause, the WebM Project authors' copyright, see [`LICENSE`](esp32/components/libvpx_vp8/LICENSE), with Google's patent grant in [`PATENTS`](esp32/components/libvpx_vp8/PATENTS) |
 
 Dependencies fetched at build time are under their own licenses: ESP-IDF
 components (into `esp32/managed_components/`), and the simulator's LVGL and
