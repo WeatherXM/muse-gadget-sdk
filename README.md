@@ -50,8 +50,8 @@ Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable wit
    Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Swipe down (or ask Muse), and it turns your exact live station readings into bespoke `480×480` artwork—Cyberpunk Neon, Ukiyo-e, Studio Ghibli, an isometric Acropolis rooftop diorama—or live camera snapshots and storm alerts on the fly.
 3. **Reversible Dual-Boot (`ota_1` — Stock WeatherXM Firmware Preserved):**
    Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs into the secondary `ota_1` firmware slot (`0x820000`) with an isolated `muse_nvs` partition. Your stock WeatherXM firmware, station identity, hardware certificates, and NVS remain untouched—hold the top button for 10 seconds (or tap `Settings → WeatherXM`) to reboot right back. Works on both the **$199 Network Edition** (`$149` with `MUSE50`) and the **$299 Open Edition** (`$249` with `MUSE50`).
-4. **Long-Range Sub-GHz LoRa & Meshtastic Meet Personal AI:**
-   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio (`SX1262`) alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—and lays the foundation for bridging long-range outdoor field sensors and peer-to-peer **Meshtastic / MeshCore** LoRa mesh telemetry (see **[WeatherXM D2 Mesh on Crowd Supply](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**) directly into personal AI workflows.
+4. **Long-Range Sub-GHz LoRa & Multi-Hop Meshtastic (`100s of km`) Meet Personal AI:**
+   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio (`SX1262`) alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) point-to-point up to ~1 km away—and with **Meshtastic / MeshCore multi-hop LoRa mesh** (see **[WeatherXM D2 Mesh on Crowd Supply](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**), it lays the foundation for relaying outdoor weather telemetry and agent-to-agent messages across **hundreds of kilometers** off-grid directly into personal AI workflows.
 
 ---
 
@@ -77,11 +77,11 @@ Muse's VM runs code and vision models on every frame alongside live rooftop tele
 
 ### 3. Next Frontier: Self-Assembling Agent Nowcasts Graded by Physical Sensors
 
-What happens when neighboring WeatherXM stations (~1 km apart)—each equipped with a sky camera and run by its own independent Muse agent—discover each other and coordinate?
+What happens when WeatherXM stations—from neighboring rooftops (~1 km apart) to regional stations linked over **multi-hop Meshtastic / MeshCore LoRa mesh across 100s of km** (**[WeatherXM D2 Mesh](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**)—each run their own independent Muse agent, discover each other, and coordinate?
 
-- **Signed rendezvous & discovery:** nearby station agents find each other and advertise what they can observe—camera bearing/FOV, live sensor channels, and scored forecast history—without a central planner.
-- **Peer-to-peer agent tasking:** *"Capture the sky at T+90s, signed—I'll do the same for you."* Synchronized sky views from two rooftops plus wind vectors yield stereo cloud-base height, optical flow, and a **shadow-arrival countdown** drawn directly onto the neighboring `WG1200` screen.
-- **Predictions graded by the physical world:** the hardest problem in AI agents is grounded evaluation. Here, every short-term prediction is automatically scored against physical ground truth: *did the rooftop solar irradiance (`W/m²`) actually drop at the predicted minute? Did rain onset hit when forecasted?* Error bars get published next to the wins, turning verified hyperlocal nowcasts into a service other agents and solar PV systems can subscribe to.
+- **Signed rendezvous & mesh discovery:** station agents find each other (over the internet or off-grid via multi-hop LoRa mesh) and advertise what they can observe—camera bearing/FOV, live sensor channels, and scored forecast history—without a central planner.
+- **Peer-to-peer agent tasking:** *"Capture the sky at T+90s, signed—I'll do the same for you."* Synchronized sky views from neighboring rooftops plus wind vectors yield stereo cloud-base height, optical flow, and a **shadow-arrival countdown** drawn directly onto the neighboring `WG1200` screen, while upwind mesh nodes decenas of kilometers away provide early storm-front arrival alerts.
+- **Predictions graded by the physical world:** the hardest problem in AI agents is grounded evaluation. Here, every short-term prediction is automatically scored against physical ground truth: *did the rooftop solar irradiance (`W/m²`) actually drop at the predicted minute? Did rain onset hit when forecasted?* "Insufficient geometry" is a valid answer, and error bars get published next to the wins—turning verified hyperlocal nowcasts into an auditable service other agents and solar PV systems can subscribe to.
 
 ### Today vs next
 
