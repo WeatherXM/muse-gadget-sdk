@@ -31,13 +31,37 @@ chip's package, and some boards have it beside the chip.
 Add an entry to `boards.json`. `board` must match a `board` in the build
 matrix in `esp32.yml`; the site job fails if it doesn't.
 
-| Field    | Required | Meaning |
-|----------|----------|---------|
-| `board`  | yes      | Board id, as in the build matrix. |
-| `name`   | yes      | Name shown in the board picker. |
-| `usb`    | no       | USB devices the board's console can show up as, as `"vid:pid"` strings (see `esp32/tools/muse/ports.py`). The port picker shows only these; leave it out if you're not sure, so the right port isn't hidden. |
-| `pacing` | no       | Paced serial writes for USB bridges that drop bytes, as `{"chunk": 32, "factor": 2}`: bytes per write, and how many times as long as a chunk takes on the wire to wait after it. Leave it out for boards that flash fine without. |
-| `note`   | no       | HTML shown under the picker when the board is selected: which port to pick, backups to take first, and so on. |
+| Field      | Required | Meaning |
+|------------|----------|---------|
+| `board`    | yes      | Board id, as in the build matrix (or `web-flasher/firmware/<board>/` for pre-signed dual-boot boards). |
+| `name`     | yes      | Name shown in the board picker. |
+| `usb`      | no       | USB devices the board's console can show up as, as `"vid:pid"` strings (see `esp32/tools/muse/ports.py`). The port picker shows only these; leave it out if you're not sure, so the right port isn't hidden. |
+| `pacing`   | no       | Paced serial writes for USB bridges that drop bytes, as `{"chunk": 32, "factor": 2}`: bytes per write, and how many times as long as a chunk takes on the wire to wait after it. Leave it out for boards that flash fine without. |
+| `noErase`  | no       | If `true`, `flasher-hooks.js` blocks full-chip erase (`eraseFlash` / `eraseAll`) so dual-boot boards never wipe factory partitions, keys, or NVS. |
+| `dualBoot` | no       | If `true`, reveals the **Return to WeatherXM / Web Bluetooth Provisioner** helper card on the flasher page. |
+| `note`     | no       | HTML shown under the picker when the board is selected: which port to pick, backups to take first, and so on. |
+
+## WeatherXM `WG1200` Safe Dual-Boot (`wxm-wg1200`)
+
+The `wxm-wg1200` entry flashes the **WeatherXM D1 Wi-Fi Gateway (`WG1200`)** without modifying or erasing its stock WeatherXM firmware (`factory` at `0x20000`, `ota_0` at `0x420000`), signed bootloader (`0x0`), hardware certificates (`0xD000`), NVS (`0xF000`), or SPIFFS (`0xC21000`).
+
+Its pre-signed firmware artifacts live in [`firmware/wxm-wg1200/`](firmware/wxm-wg1200/) and are generated from an RSA-3072 signed build via:
+
+```sh
+python3 web-flasher/make_manifest.py \
+  esp32/build-muse-wxm-wg1200 \
+  web-flasher/firmware/wxm-wg1200 \
+  "Muse (WeatherXM WG1200 Dual-Boot)" \
+  "$(tr -d '\n' < esp32/version.txt)+$(git rev-parse --short HEAD)"
+```
+
+To serve both the **Web Flasher** and the **Full Web Bluetooth Provisioner** locally in Chrome:
+
+```sh
+python3 esp32/tools/muse/muse_setup_server.py
+# Web Flasher:               http://localhost:8099/web-flasher/
+# Web Bluetooth Provisioner: http://localhost:8099/
+```
 
 ## Testing locally
 

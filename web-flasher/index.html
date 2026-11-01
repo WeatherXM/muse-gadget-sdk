@@ -168,6 +168,26 @@ limitations under the License.
       <p id="token-status" class="status"></p>
     </details>
 
+    <details class="card" id="wg1200-dualboot" hidden>
+      <summary>WeatherXM WG1200 — Return to WeatherXM or Provision via Web Bluetooth</summary>
+      <p class="note">
+        Your stock WeatherXM firmware (<code>factory</code> / <code>ota_0</code>), Secure Boot keys,
+        certificates (<code>esp_secure_cert</code>), and NVS (<code>0xF000</code>) are preserved untouched.
+        You can switch back to stock WeatherXM OS at any time:
+      </p>
+      <ul class="note" style="margin: 0 0 0.75rem 1.25rem; padding: 0;">
+        <li><strong>Touchscreen:</strong> Tap <strong>Settings → WeatherXM</strong> and select <code>Boot ota_0</code> or <code>Boot factory</code>.</li>
+        <li><strong>Physical button:</strong> Hold the <strong>top button (GPIO38) for 5 seconds</strong> until the double chirp.</li>
+        <li><strong>USB Web Serial (below):</strong> Click the button below while Muse is running on the WG1200.</li>
+        <li><strong>CLI fallback (any state):</strong> Run <code>./esp32/tools/wg1200_dualboot.sh boot-weatherxm /dev/cu.usbserial-*</code></li>
+      </ul>
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+        <button id="boot-weatherxm" class="button secondary">Return WG1200 to WeatherXM</button>
+        <a href="http://localhost:8099/" class="button secondary" style="text-decoration: none; display: inline-block;">Open Web Bluetooth Provisioner ↗</a>
+      </div>
+      <p id="wxm-status" class="status" role="status" aria-live="polite"></p>
+    </details>
+
     <footer class="note">
       Board not showing up? Some boards need you to hold <strong>BOOT</strong>
       while plugging in USB. Built from
@@ -178,7 +198,7 @@ limitations under the License.
   <script type="module">
     import { installFlasherHooks } from "./flasher-hooks.js";
     import { installPacedSerial } from "./paced-serial.js";
-    import { isSdkToken, sendSdkToken } from "./sdk-token.js";
+    import { isSdkToken, sendSdkToken, sendBootWeatherXM } from "./sdk-token.js";
 
     const $ = (id) => document.getElementById(id);
     const select = $("board");
@@ -210,6 +230,9 @@ limitations under the License.
       pacing?.set(board.pacing ?? null);
       $("board-note").innerHTML = board.note ?? "";
       $("all-ports-row").hidden = !board.usb;
+      const dualBootCard = $("wg1200-dualboot");
+      dualBootCard.hidden = !board.dualBoot;
+      if (board.dualBoot) dualBootCard.open = true;
       minFlashBytes = 0;
       const manifest = await fetch(manifestPath).then((r) => r.json()).catch(() => null);
       if (board.board === select.value) minFlashBytes = manifest?.min_flash_bytes ?? 0;
@@ -269,7 +292,11 @@ limitations under the License.
       showStatus(statusEl, "Sending your SDK token to the gadget…");
       try {
         await sendSdkToken(port, token());
-        showStatus(statusEl, "Done. The gadget restarts with your token; set it up in the Muse app.", "ok");
+        showStatus(
+          statusEl,
+          "Done. The gadget restarts with your token; set it up in the Muse app or use the Web Bluetooth Provisioner.",
+          "ok",
+        );
       } catch (e) {
         showStatus(statusEl, e.message, "error");
       }
@@ -279,7 +306,11 @@ limitations under the License.
     let installedPort = null;
     if (pacing) {
       installFlasherHooks({
-        getSelection: () => ({ usb: allPorts.checked ? null : board.usb, minFlashBytes }),
+        getSelection: () => ({
+          usb: allPorts.checked ? null : board.usb,
+          minFlashBytes,
+          noErase: Boolean(board?.noErase),
+        }),
         onInstalled: (port) => (installedPort = port),
       });
     }
@@ -313,6 +344,24 @@ limitations under the License.
         return;   // no port picked
       }
       await send(port, $("token-status"));
+    });
+
+    $("boot-weatherxm").disabled = !pacing;
+    $("boot-weatherxm").addEventListener("click", async () => {
+      let port;
+      try {
+        port = await navigator.serial.requestPort();
+      } catch {
+        return;
+      }
+      showStatus($("wxm-status"), "Sending >boot.weatherxm to WG1200 over USB serial…");
+      try {
+        const info = await sendBootWeatherXM(port);
+        const slot = info.wxm_label ? `${info.wxm_label} (${info.wxm_project || "WeatherXM"} ${info.wxm_version || ""})` : "WeatherXM";
+        showStatus($("wxm-status"), `Done! WG1200 is rebooting into stock WeatherXM firmware (${slot.trim()}).`, "ok");
+      } catch (e) {
+        showStatus($("wxm-status"), e.message, "error");
+      }
     });
 
     if (build?.commit) {

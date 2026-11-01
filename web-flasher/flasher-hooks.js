@@ -71,13 +71,20 @@ export function installFlasherHooks({ getSelection, onInstalled }) {
       };
       const eraseFlash = value.eraseFlash.bind(value);
       value.eraseFlash = async (...args) => {
+        const { noErase } = getSelection();
+        if (noErase) {
+          // Never allow full-chip erase on dual-boot boards (e.g. WeatherXM WG1200).
+          return;
+        }
         if (!(await checkFlash())) return eraseFlash(...args);
       };
       const writeFlash = value.writeFlash.bind(value);
       value.writeFlash = async (options) => {
         const problem = await checkFlash();
         if (problem) throw new Error(problem);
-        await writeFlash(options);
+        const { noErase } = getSelection();
+        const safeOptions = noErase ? { ...options, eraseAll: false } : options;
+        await writeFlash(safeOptions);
         onInstalled?.(lastPort);
       };
     },

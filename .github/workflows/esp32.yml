@@ -286,9 +286,14 @@ jobs:
           path: site/firmware
           merge-multiple: true
 
-      # A listed board that the build matrix doesn't build has no manifest.
+      # A listed board that the build matrix doesn't build has no manifest
+      # unless pre-signed firmware is committed under web-flasher/firmware/.
       - name: Add page
         run: |
+          mkdir -p site/firmware
+          if [ -d web-flasher/firmware ]; then
+            cp -R web-flasher/firmware/* site/firmware/
+          fi
           for board in $(jq -r '.[].board' web-flasher/boards.json); do
             [ -f "site/firmware/$board/manifest.json" ] || {
               echo "::error::$board is in web-flasher/boards.json but not in the build matrix"

@@ -98,6 +98,22 @@ every stock WeatherXM partition at its exact byte offset and installs Muse into
 
 ### Building, Flashing, and Switching OS
 
+#### Option 1 — Browser Web Flasher (`http://localhost:8099/web-flasher/`, No Toolchain Required)
+
+The repository bundles the latest RSA-3072 signed `muse-gadget.bin` (`0x820000`), `partition-table.bin` (`0xC000`), and `otadata_ota1.bin` (`0x13000`) in [`web-flasher/firmware/wxm-wg1200/`](../../web-flasher/firmware/wxm-wg1200/):
+
+```sh
+python3 esp32/tools/muse/muse_setup_server.py
+```
+
+1. Open **`http://localhost:8099/web-flasher/`** in Google Chrome or Edge.
+2. Enter your **Muse SDK token (`mgst_...`)** in Step 1.
+3. With **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)** selected in Step 2, click **Connect & install** and pick the WG1200 USB port (`1a86:7523`).
+4. Full-chip erase is disabled (`noErase: true` / `new_install_prompt_erase: false`) so stock WeatherXM partitions cannot be erased. When the install dialog closes, the page automatically sends `>sdk_token=mgst_...` over USB serial and reboots into Muse.
+5. To switch back to stock WeatherXM OS from the browser at any time, click **Return WG1200 to WeatherXM** on the Web Flasher page (sends `>boot.weatherxm` over Web Serial).
+
+#### Option 2 — CLI (`tools/wg1200_dualboot.sh`)
+
 Use [`tools/wg1200_dualboot.sh`](../tools/wg1200_dualboot.sh):
 
 ```sh
