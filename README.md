@@ -50,8 +50,8 @@ Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable wit
    Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Swipe down (or ask Muse), and it turns your exact live station readings into bespoke `480×480` artwork—Cyberpunk Neon, Ukiyo-e, Studio Ghibli, an isometric Acropolis rooftop diorama—or live camera snapshots and storm alerts on the fly.
 3. **Reversible Dual-Boot (`ota_1` — Stock WeatherXM Firmware Preserved):**
    Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs into the secondary `ota_1` firmware slot (`0x820000`) with an isolated `muse_nvs` partition. Your stock WeatherXM firmware, station identity, hardware certificates, and NVS remain untouched—hold the top button for 10 seconds (or tap `Settings → WeatherXM`) to reboot right back. Works on both the **$199 Network Edition** (`$149` with `MUSE50`) and the **$299 Open Edition** (`$249` with `MUSE50`).
-4. **Long-Range Sub-GHz LoRa Meets Personal AI:**
-   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio (`SX1262`) alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—bridging outdoor field telemetry directly into personal AI workflows.
+4. **Long-Range Sub-GHz LoRa & Meshtastic Meet Personal AI:**
+   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio (`SX1262`) alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—and lays the foundation for bridging long-range outdoor field sensors and peer-to-peer **Meshtastic / MeshCore** LoRa mesh telemetry (see **[WeatherXM D2 Mesh on Crowd Supply](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**) directly into personal AI workflows.
 
 ---
 
