@@ -69,9 +69,22 @@ def _upstream_request(
         return 502, {"error": f"Upstream request to {url} failed: {exc}"}
 
 
+def _safe_log(msg: str) -> None:
+    try:
+        print(msg, flush=True)
+    except OSError:
+        pass
+
+
 class MuseSetupHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(HERE), **kwargs)
+
+    def log_message(self, format: str, *args: Any) -> None:
+        try:
+            super().log_message(format, *args)
+        except OSError:
+            pass
 
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -130,10 +143,9 @@ class MuseSetupHandler(SimpleHTTPRequestHandler):
             if sdk_token:
                 mint_body["sdk_token"] = sdk_token
 
-            print(
+            _safe_log(
                 f"[Proxy] POST {UPSTREAM_API_BASE}/device_token/mint "
-                f"(device_id={device_id}, sdk_token={'set' if sdk_token else 'none'})",
-                flush=True,
+                f"(device_id={device_id}, sdk_token={'set' if sdk_token else 'none'})"
             )
             status, resp_data = _upstream_request(
                 "POST", "/device_token/mint", web_token, mint_body
@@ -157,9 +169,8 @@ class MuseSetupHandler(SimpleHTTPRequestHandler):
             if sdk_token:
                 refresh_body["sdk_token"] = sdk_token
 
-            print(
-                f"[Proxy] POST {UPSTREAM_API_BASE}/device_token/refresh (device_id={device_id})",
-                flush=True,
+            _safe_log(
+                f"[Proxy] POST {UPSTREAM_API_BASE}/device_token/refresh (device_id={device_id})"
             )
             status, resp_data = _upstream_request(
                 "POST", "/device_token/refresh", refresh_token, refresh_body
@@ -173,7 +184,7 @@ class MuseSetupHandler(SimpleHTTPRequestHandler):
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Missing access_token"})
                 return
 
-            print(f"[Proxy] GET {UPSTREAM_API_BASE}/fetch_vms", flush=True)
+            _safe_log(f"[Proxy] GET {UPSTREAM_API_BASE}/fetch_vms")
             status, resp_data = _upstream_request("GET", "/fetch_vms", access_token, None)
             self._send_json(status, resp_data)
             return

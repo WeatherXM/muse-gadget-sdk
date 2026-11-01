@@ -112,9 +112,122 @@ WXM_SIGNING_KEY=/path/to/secure_boot_signing_key.pem ./tools/wg1200_dualboot.sh 
 # 3. Install Muse into ota_1 (0x820000) without touching WeatherXM
 WXM_SIGNING_KEY=/path/to/secure_boot_signing_key.pem ./tools/wg1200_dualboot.sh install /dev/cu.usbserial-1110
 
-# 4. Provision your Muse SDK token over USB serial (or in Settings -> Muse -> SDK token)
+# 4. Provision your Muse SDK token over USB serial (or via Web Serial on localhost:8099)
 printf '>sdk_token=mgst_...\n' > /dev/cu.usbserial-1110
 ```
+
+---
+
+## Provisioning a Permanent 365-Day Device Token (`provision_v2` + `muse_ble`)
+
+The ESP32 firmware runs **two BLE GATT services** on the same NimBLE stack:
+1. **Subsystem B — Home Link (`7fdd3d1c-38ea-46cf-8b46-314ecf5f240c`, [`ble_server.c`](../main/ble_server.c) & [`link_pairing.c`](../main/link_pairing.c)):**
+   The main gadget daemon. Requires an ECDH P-256 + HKDF-SHA256 + AES-256-GCM v5 pairing handshake followed by an encrypted `provision_v2` payload carrying a **permanent 365-day device token pair** (`access_token` + `refresh_token`, `token_type: "device"`). Once provisioned, it registers the gadget with your Muse VM (`link.register`), opens the `10.42.0.1` LAN tunnel, and exposes `sensors.read`, `display.draw_url`, `display.draw_file`, `wg1200.notify`, and `device.boot_weatherxm`.
+2. **Subsystem A — Companion Setup (`4d757365-0001-4000-8000-6a6f6c6c7900`, [`muse_ble.c`](../components/muse/muse_ble.c)):**
+   Configures `hatch.host`, `hatch.vm`, and `hatch.token` in NVS for device-initiated touchscreen turns.
+
+> **Important:** Passing only a short-lived browser session token (`s0:...`) to `ble_setup.html` (`muse_ble`) only configures Subsystem A and **expires quickly** without registering `Home Link` (`link.register`). For a permanent setup, you must mint a **365-day `device` token pair** (`access_token` + `refresh_token`) and pass it through `provision_v2`.
+
+### 1. What You Need to Mint & Pass a Permanent Token (Per Device)
+
+| Requirement | Where to Get It | Per-Account or Per-Device? | How It Is Used |
+|---|---|---|---|
+| **1. SDK Token (`mgst_...`, 48 chars)** | Create at [`https://gadgets.muse.ai/settings/sdk-tokens`](https://gadgets.muse.ai/settings/sdk-tokens) | **Per-Account** (can be shared across your devices) | Must be stored in the ESP32's NVS over USB Serial (`>sdk_token=mgst_...\n` at `115200` baud, see [`sdk_token_console.h`](../main/sdk_token_console.h)) **and** passed in the JSON body of `POST /device_token/mint`. |
+| **2. Device Node ID (`homelink-xxxxxx`)** | Auto-read over BLE (`get_device_info`) or derived from the BLE name `MuseGadget-XXXXXX` | **Unique Per ESP32 Device** (lowercase last 3 bytes of Wi-Fi STA MAC, see [`identity.c`](../main/identity.c)) | Passed as `"device_id": "homelink-xxxxxx"` to `POST https://api.muse.ai/device_token/mint`. **Every physical ESP32 must mint its own token pair using its own `homelink-xxxxxx` ID.** |
+| **3. Web User Access Token (`s0:...` / `eyJ...`)** | From a logged-in `https://muse.ai` browser tab (`POST https://muse.ai/api/auth/check`) | **Per-Session** (only needed once at setup time to call `/device_token/mint`) | Used as `Authorization: Bearer <WEB_USER_ACCESS_TOKEN>` when calling `POST https://api.muse.ai/device_token/mint`. |
+| **4. Assigned Muse VM ID (`<UUID>`)** | From `GET https://muse.ai/api/session` or `GET https://api.muse.ai/fetch_vms` | **Per-Account VM** | Written to Companion NVS (`hatch.vm=<UUID>`) and verified against `fetch_vms`. |
+| **5. 2.4 GHz Wi-Fi `ssid` & `password`** | Your local 2.4 GHz Wi-Fi network | **Per-Location** | Sent inside the encrypted `provision_v2` payload over Home Link BLE. |
+
+---
+
+### 2. Option A — 1-Click Web Bluetooth Provisioner (`http://localhost:8099`)
+
+Because `https://api.muse.ai` does not return browser CORS headers, [`muse_setup_server.py`](../tools/muse/muse_setup_server.py) provides a tiny local HTTP server + CORS proxy on `http://localhost:8099` serving [`muse_full_setup.html`](../tools/muse/muse_full_setup.html):
+
+```sh
+python3 esp32/tools/muse/muse_setup_server.py --port 8099
+```
+
+Then open **`http://localhost:8099`** in **Google Chrome**:
+
+1. **Write the SDK Token to the New ESP32 (Once per board):**
+   Paste your 48-character `mgst_...` token into **SDK Token** and click **Write via USB Serial** (or send `printf '>sdk_token=mgst_...\n' > /dev/cu.usbserial-XXXX`). The ESP32 replies `@sdk_token ok`, saves it in NVS, and reboots.
+2. **Grab Your Web User Access Token from `https://muse.ai`:**
+   Click **Copy DevTools Token Snippet** on the setup page, paste it into the DevTools Console of your logged-in `https://muse.ai` tab:
+   ```js
+   fetch('/api/auth/check', { method: 'POST' })
+     .then(r => r.json())
+     .then(d => { console.log(d.access_token); copy(d.access_token); });
+   ```
+   and paste the copied token into **Web User Access Token**.
+3. **Connect the New ESP32 over Web Bluetooth:**
+   Click **Connect ESP32 via Web Bluetooth** and pick `MuseGadget-XXXXXX`.
+   - The page automatically queries `{"action":"get_device_info"}` over Home Link BLE, updates **Node ID** to the new device's `homelink-xxxxxx`, and clears any cached token from a previous board so a fresh 365-day token pair will be minted for the new device.
+4. **Click `1-Click Full Provision (Home Link + Companion)`:**
+   - **Step 1–2:** Performs the P-256 ECDH + HKDF-SHA256 + AES-256-GCM handshake (`pairing_client_hello` → `pairing_ready` → `pairing_client_finished`).
+   - **Step 3:** When the orange banner pulses (`confirm_required`), **tap Confirm on the WG1200 touchscreen** (within 60s).
+   - **Step 4:** Mints the permanent 365-day `access_token` + `refresh_token` for `homelink-xxxxxx` via `/api/mint` (`POST https://api.muse.ai/device_token/mint`).
+   - **Step 5:** Writes `hatch.host`, `hatch.vm`, and chunked `hatch.token` to Subsystem A (`muse_ble`).
+   - **Step 6–7:** Sends encrypted `provision_v2` (`token_type: "device"`) to Subsystem B (`Home Link`), waits for `wifi_connecting` → `wifi_connected` → `auth_ok`, marks `setup_complete` in NVS, and reboots into linked VM mode.
+
+---
+
+### 3. Option B — Manual CLI (`curl`) Reference for Minting & Refreshing Permanent Tokens
+
+If you want to mint, refresh, or inspect a permanent 365-day device token pair directly from the terminal (matching [`esp32/main/vm_api.c`](../main/vm_api.c)):
+
+#### A. Mint a 365-Day Device Token Pair (`POST https://api.muse.ai/device_token/mint`)
+```sh
+curl -sS -X POST "https://api.muse.ai/device_token/mint" \
+  -H "Authorization: Bearer <WEB_USER_ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Version: 1.0.0" \
+  -d '{
+    "device_id": "homelink-xxxxxx",
+    "sdk_token": "mgst_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  }'
+```
+**Response:**
+```json
+{
+  "access_token": "<MINTED_365_DAY_DEVICE_ACCESS_TOKEN>",
+  "refresh_token": "<MINTED_365_DAY_DEVICE_REFRESH_TOKEN>"
+}
+```
+
+#### B. Verify the Minted Device Token & List VMs (`GET https://api.muse.ai/fetch_vms`)
+```sh
+curl -sS -X GET "https://api.muse.ai/fetch_vms" \
+  -H "Authorization: Bearer <MINTED_365_DAY_DEVICE_ACCESS_TOKEN>" \
+  -H "X-API-Version: 1.0.0"
+```
+
+#### C. Refresh a Device Token Pair (`POST https://api.muse.ai/device_token/refresh`)
+The ESP32 automatically calls this endpoint using its stored `refresh_token` in NVS ([`vm_api_refresh_device_token`](../main/vm_api.c#L268-L273)):
+```sh
+curl -sS -X POST "https://api.muse.ai/device_token/refresh" \
+  -H "Authorization: Bearer <MINTED_365_DAY_DEVICE_REFRESH_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Version: 1.0.0" \
+  -d '{
+    "device_id": "homelink-xxxxxx",
+    "sdk_token": "mgst_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  }'
+```
+
+#### D. Exact `provision_v2` JSON Payload Sent Inside the Encrypted Home Link Envelope
+In [`esp32/main/ble_server.c`](../main/ble_server.c#L397-L441) and [`esp32/main/app.c`](../main/app.c#L803-L869), `provision_v2` requires all four strings (`ssid`, `password`, `access_token`, `refresh_token`) to be non-empty and `"token_type": "device"`:
+```json
+{
+  "action": "provision_v2",
+  "ssid": "<YOUR_2.4GHZ_WIFI_SSID>",
+  "password": "<YOUR_WIFI_PASSWORD>",
+  "access_token": "<MINTED_365_DAY_DEVICE_ACCESS_TOKEN>",
+  "refresh_token": "<MINTED_365_DAY_DEVICE_REFRESH_TOKEN>",
+  "token_type": "device"
+}
+```
+When both `access_token` and `refresh_token` are provided with `"token_type": "device"`, [`accept_pairing_credentials()`](../main/app.c#L817-L853) stores both tokens directly in the `muse_nvs` (`config_store`) partition and marks `setup_complete = 1`.
 
 ### Returning to WeatherXM Firmware
 
