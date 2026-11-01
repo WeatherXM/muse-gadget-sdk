@@ -15,6 +15,7 @@
  */
 
 #include "muse_board.h"
+#include "muse_state.h"
 
 #include "esp_check.h"
 #include "esp_sleep.h"
@@ -119,4 +120,9 @@ void muse_gpio_buttons_wait(muse_gpio_button_t *const *b, int n, int timeout_ms)
         gpio_intr_disable(b[i]->gpio);
         gpio_wakeup_disable(b[i]->gpio);
     }
+}
+
+bool muse_state_display_only(void)
+{
+    return muse_board && !muse_board->audio_init && !muse_board->mic_init;
 }

@@ -41,6 +41,7 @@ class ChatSession(unittest.TestCase):
 #include "cJSON.h"
 #include "minimp3.h"
 #include "muse_chat_priv.h"
+#include "muse_state.h"
 #define ESP_LOGI(...) ((void)0)
 #define ESP_LOGW(...) ((void)0)
 ''' + constants + types + r'''
@@ -88,6 +89,20 @@ bool muse_hatch_configured() { return true; }
 static void resampler_init(resampler_t *, int, int) {}
 static void on_dictation_end(bool) {}
 static void log_marks() {}
+// On-screen captions for typed UI turns (boards without a microphone).
+void muse_state_set_mode(muse_mode_t) {}
+muse_mode_t muse_state_mode(float *secs) { if (secs) *secs = 0; return MUSE_MODE_IDLE; }
+void muse_state_set_progress(float) {}
+void muse_state_set_caption(const char *, ...) {}
+void muse_state_poke() {}
+void muse_state_set_asleep(bool) {}
+static bool s_connected = true;
+static bool has_reply_text() {
+    for (int i = 0; i < s_turn.nmsgs; i++) {
+        if (s_turn.msgs[i].len > 0) return true;
+    }
+    return false;
+}
 ''' + done + reset + handlers + start_tts + check + r'''
 static void begin(bool typed = false) {
     clock_us = 12345;

@@ -102,6 +102,30 @@ void muse_state_page(bool cjk, int *cols, int *lines) {
     *lines = 2;
 }
 
+// The session's on-screen captions for typed turns on display-only boards:
+// the Voice PE has a speaker and microphone, so none of them are drawn.
+bool muse_state_display_only(void) {
+    return false;
+}
+void muse_state_set_mode(muse_mode_t mode) {
+    (void)mode;
+}
+muse_mode_t muse_state_mode(float *secs_in_mode) {
+    if (secs_in_mode) *secs_in_mode = 0;
+    return MUSE_MODE_IDLE;
+}
+void muse_state_set_progress(float progress) {
+    (void)progress;
+}
+void muse_state_set_caption(const char *fmt, ...) {
+    (void)fmt;
+}
+void muse_state_poke(void) {
+}
+void muse_state_set_asleep(bool asleep) {
+    (void)asleep;
+}
+
 #if CONFIG_MUSE_REALTIME_VOICE
 // The call names Link's node as its device (a RAM string set at boot).
 const char *muse_voice_call_device_id(void) {

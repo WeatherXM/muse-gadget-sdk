@@ -31,6 +31,7 @@ static struct { void *data; } s_image_dsc;
 static void *s_tv;
 static void send_snapshot(void) {}
 static void image_sync(void) {}
+static void notify_sync(void) {}   /* WG1200 notification card */
 static void image_hide_locked(void) {}
 static void muse_ui_show_face(void) {}
 static bool update_sleep(void) { return false; }

@@ -72,7 +72,6 @@ extern "C" {
 #include "cJSON.h"
 #include "minimp3.h"
 #include "muse_account_api.h"
-#include "muse_board.h"
 #include "muse_link.h"
 #include "muse_settings.h"
 #include "muse_state.h"
@@ -1021,7 +1020,7 @@ static void turn_done(bool complete)
     if (s_turn.ui_text) {
         muse_state_set_progress(0);
         muse_state_set_mode(MUSE_MODE_IDLE);
-        muse_state_set_caption("");
+        muse_state_set_caption("%s", "");
     }
     emit(MUSE_HATCH_EV_DONE, complete ? nullptr : "REPLY INCOMPLETE");
     turn_finish();
@@ -1303,6 +1302,9 @@ static void text_begin(const char *text, bool ui_text)
     }
 }
 
+/* What was heard: the finals so far, a space and the partial, whole. */
+#define HEARD_MAX (sizeof(s_turn.committed) + 1 + sizeof(s_turn.partial))
+
 static void on_dictation_line(cJSON *line)
 {
     const char *type = cJSON_GetStringValue(cJSON_GetObjectItem(line, "type"));
@@ -1310,7 +1312,7 @@ static void on_dictation_line(cJSON *line)
     if (!type) {
         return;
     }
-    char heard[1024];
+    char heard[HEARD_MAX];
     if (!strcmp(type, "partial") && text) {
         strlcpy(s_turn.partial, text, sizeof(s_turn.partial));
         snprintf(heard, sizeof(heard), "%s%s%s", s_turn.committed, s_turn.committed[0] ? " " : "", text);
@@ -1343,7 +1345,7 @@ static void on_dictation_end(bool ok)
         turn_fail(ok ? "MUSE STOPPED LISTENING" : "MUSE COULDN'T LISTEN");
         return;
     }
-    char heard[1024];
+    char heard[HEARD_MAX];
     snprintf(heard, sizeof(heard), "%s%s%s", s_turn.committed, s_turn.committed[0] ? " " : "", s_turn.partial);
     post_chat(heard);
 }
@@ -2167,7 +2169,7 @@ static void handle(const cmd_t &cmd)
         break;
     case CMD_TEXT:
     case CMD_UI_TEXT: {
-        bool ui = (cmd.type == CMD_UI_TEXT) || (muse_board && !muse_board->audio_init && !muse_board->mic_init);
+        bool ui = (cmd.type == CMD_UI_TEXT) || muse_state_display_only();
         if (s_turn.phase != P_IDLE && !s_turn.text) {
             muse_hatch_console("error", "BUSY WITH A VOICE TURN", nullptr);
         } else {

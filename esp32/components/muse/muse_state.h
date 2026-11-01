@@ -80,6 +80,10 @@ bool muse_state_on_battery(void);
 /* Bench tests over USB (">nap"): count as on battery until turned off. */
 void muse_state_set_as_if_battery(bool on);
 
+/* A board with a screen but no microphone or speaker (the WG1200): typed
+ * turns show their prompt and reply as captions instead of speaking. */
+bool muse_state_display_only(void);
+
 /* Any user interaction: keeps Muse awake. */
 void muse_state_poke(void);
 float muse_state_idle_secs(void);

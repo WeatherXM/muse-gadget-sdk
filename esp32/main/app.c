@@ -2347,8 +2347,14 @@ static bool connect_muse_settings_vm_with_gate_held(void) {
 
     muse_hatch_vm_t vm;
     memset(&vm, 0, sizeof(vm));
+#if CONFIG_MUSE_HATCH
     bool found = (muse_hatch_api_find_vm(token, want, &vm) == 0
                   && vm.vm_id[0] && vm.vm_token && vm.vm_token[0]);
+#else
+    // Without Muse's own session (boards without PSRAM) there's no account
+    // API client to look the VM up: use the one set in Settings, if any.
+    bool found = false;
+#endif
     if (!found && want[0]) {
         free(vm.vm_token);
         snprintf(vm.vm_id, sizeof(vm.vm_id), "%s", want);
