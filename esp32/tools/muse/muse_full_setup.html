@@ -484,6 +484,10 @@
               >
               <button type="button" id="btnToggleWifiPass" class="small" aria-pressed="false">Show</button>
             </div>
+            <label class="checkbox-label" for="chkSaveWifiPass" style="margin-top: 6px;">
+              <input type="checkbox" id="chkSaveWifiPass" name="save_wifi_pass">
+              Remember Wi-Fi password in this browser
+            </label>
           </div>
 
           <div class="field">
@@ -545,17 +549,20 @@
           </div>
 
           <div class="field">
-            <label for="hatchHost">Muse Host URL</label>
+            <label for="hatchHost">Muse VM server (optional)</label>
             <input
-              type="url"
+              type="text"
               id="hatchHost"
               name="hatch_host"
-              required
               autocorrect="off"
               autocapitalize="off"
               spellcheck="false"
-              value="https://muse.ai"
+              placeholder="hatch.metaaivm.com (default)"
+              aria-describedby="hatchHostHint"
             >
+            <span id="hatchHostHint" class="hint">
+              Bare hostname, no <code>https://</code>. Leave empty to use the firmware default. <code>muse.ai</code> is the account API, not the VM server.
+            </span>
           </div>
 
           <div class="field">
@@ -789,12 +796,12 @@
         `pairing_auth=${fields.pairing_auth}`,
         `pairing_auth_epoch=${fields.pairing_auth_epoch}`,
         `pairing_policy=${fields.pairing_policy}`,
-        "confirm_timeout_seconds=60",
+        `confirm_timeout_seconds=${fields.pairing_policy === "confirm_press" ? 60 : 0}`,
         `mobile_pub=${fields.mobile_pub}`,
         `device_pub=${fields.device_pub}`,
         `mobile_nonce=${fields.mobile_nonce}`,
+        // No trailing newline: must match main/pairing_transcript.c byte for byte.
         `device_nonce=${fields.device_nonce}`,
-        "",
       ].join("\n");
     }
 
@@ -1150,8 +1157,11 @@
       }
     }
 
+    let companionReadInFlight = false;
+
     async function readCompanionStatus() {
-      if (!museRspChar) return null;
+      if (!museRspChar || companionReadInFlight) return null;
+      companionReadInFlight = true;
       try {
         const val = await museRspChar.readValue();
         const txt = utf8Decode(new Uint8Array(val.buffer, val.byteOffset, val.byteLength));
@@ -1161,6 +1171,8 @@
       } catch (err) {
         log(`[Companion Read Error] ${err.message}`, "log-warn");
         return null;
+      } finally {
+        companionReadInFlight = false;
       }
     }
 
@@ -1275,11 +1287,15 @@
           museCmdChar = await museSvc.getCharacteristic(MUSE_BLE_CMD_UUID);
           museRspChar = await museSvc.getCharacteristic(MUSE_BLE_RSP_UUID);
           await museRspChar.startNotifications();
-          museRspChar.addEventListener("characteristicvaluechanged", async (ev) => {
+          museRspChar.addEventListener("characteristicvaluechanged", (ev) => {
+            // readValue() also fires this event, so status reads land here too.
+            // Only the device's notifications (the "cmd: result" line) are
+            // logged; re-reading from here would loop forever and starve the
+            // GATT queue that the provisioning writes need.
+            if (companionReadInFlight) return;
             const msg = utf8Decode(new Uint8Array(ev.target.value.buffer, ev.target.value.byteOffset, ev.target.value.byteLength));
             el("stLastReply").textContent = msg;
             log(`[Companion RSP] ${msg}`, msg.includes("error") ? "log-err" : "log-ok");
-            await readCompanionStatus();
           });
           el("stMuseBleSvc").textContent = "Connected (4d757365...)";
           log("Connected to Subsystem A: Muse Companion GATT Service (4d757365...)", "log-ok");
@@ -1419,6 +1435,18 @@
     // =========================================================================
     // 9. Provisioning Flows (Companion + Home Link `provision_v2`)
     // =========================================================================
+    // The device's hatch.host is a bare hostname that the firmware resolves
+    // directly (default hatch.metaaivm.com). Strip any scheme or path, and drop
+    // the account API hosts, which older versions of this page wrote here.
+    function normalizeMuseHost(value) {
+      const host = String(value || "").trim().replace(/^[a-z]+:\/\//i, "").replace(/[/?#].*$/, "").toLowerCase();
+      if (host === "muse.ai" || host === "api.muse.ai" || host === "www.muse.ai") {
+        log(`Ignoring Muse VM server "${value}": that's the account API. Using the firmware default.`, "log-warn");
+        return "";
+      }
+      return host;
+    }
+
     async function runCompanionProvision({ includeWifi = false, accessToken = "" } = {}) {
       if (!museCmdChar) {
         log("Companion service (muse_ble) not available; skipping Companion commands.", "log-warn");
@@ -1426,7 +1454,7 @@
       }
       const ssid = el("wifiSsid").value.trim();
       const pass = el("wifiPass").value;
-      const host = el("hatchHost").value.trim() || "https://muse.ai";
+      const host = normalizeMuseHost(el("hatchHost").value);
       const vmId = el("vmId").value.trim();
       const token = (accessToken || el("deviceAccessToken").value || el("webToken").value).trim();
 
@@ -1435,9 +1463,8 @@
         await sendCompanionCmd(`wifi.pass=${pass}`);
         await sendCompanionCmd("wifi.connect");
       }
-      if (host) {
-        await sendCompanionCmd(`hatch.host=${host}`);
-      }
+      // An empty value resets the device to its default VM server.
+      await sendCompanionCmd(`hatch.host=${host}`);
       if (vmId) {
         await sendCompanionCmd(`hatch.vm=${vmId}`);
       }
@@ -1455,6 +1482,7 @@
       const ssid = el("wifiSsid").value.trim();
       const pass = el("wifiPass").value;
       if (!ssid || !pass) {
+        el(ssid ? "wifiPass" : "wifiSsid").focus();
         throw new Error("Both Wi-Fi SSID and Wi-Fi Password are required for provision_v2.");
       }
 
@@ -1496,6 +1524,12 @@
       const readyMsg = await readyPromise;
       if (readyMsg.type === "plain_status") {
         setStepState(1, "error");
+        if (readyMsg.status === "error_pairing_unavailable") {
+          throw new Error(
+            "ESP32 rejected pairing_client_hello: error_pairing_unavailable. The device is already set up and " +
+              "refuses new pairings; use Unpair / Reset Home Link (or hold the button for 5 s) to provision it again."
+          );
+        }
         throw new Error(`ESP32 rejected pairing_client_hello: ${readyMsg.status}`);
       }
       setStepState(1, "done");
@@ -1751,6 +1785,14 @@
       if (sdkVal && SDK_TOKEN_REGEX.test(sdkVal)) {
         localStorage.setItem("muse-sdk-token", sdkVal);
       }
+      // The Wi-Fi password is kept only while "Remember" is ticked.
+      if (el("chkSaveWifiPass").checked) {
+        localStorage.setItem("muse_setup_saveWifiPass", "1");
+        localStorage.setItem("muse_setup_wifiPass", el("wifiPass").value);
+      } else {
+        localStorage.removeItem("muse_setup_saveWifiPass");
+        localStorage.removeItem("muse_setup_wifiPass");
+      }
     }
 
     function loadFormFromStorage() {
@@ -1759,12 +1801,18 @@
         if (saved !== null && el(k)) {
           // Keep default VM ID, Host, and SDK Token if storage is empty
           if ((k === "vmId" || k === "hatchHost" || k === "sdkToken") && !saved.trim()) continue;
+          // Older versions of this page saved the account API URL here.
+          if (k === "hatchHost" && /^(https?:\/\/)?(www\.|api\.)?muse\.ai\/?$/i.test(saved.trim())) continue;
           el(k).value = saved;
         }
       }
       const flasherSdkToken = localStorage.getItem("muse-sdk-token");
       if (flasherSdkToken && SDK_TOKEN_REGEX.test(flasherSdkToken) && !el("sdkToken").value.trim()) {
         el("sdkToken").value = flasherSdkToken;
+      }
+      if (localStorage.getItem("muse_setup_saveWifiPass") === "1") {
+        el("chkSaveWifiPass").checked = true;
+        el("wifiPass").value = localStorage.getItem("muse_setup_wifiPass") || "";
       }
     }
 
@@ -1790,6 +1838,8 @@
       for (const k of STORAGE_KEYS) {
         el(k)?.addEventListener("input", saveFormToStorage);
       }
+      el("wifiPass").addEventListener("input", saveFormToStorage);
+      el("chkSaveWifiPass").addEventListener("change", saveFormToStorage);
 
       runCryptoSelfTest();
       checkProxyHealth();
