@@ -41,7 +41,7 @@ Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable wit
 2. **A Dynamic `480×480` Visual Canvas for AI & Automation (Beyond Static Numbers):**
    Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Any personal AI agent, local home-automation hub, or custom script can turn live weather into bespoke infographics, storm alerts, doorbell/camera snapshots, solar PV gauges, or generative artwork on the fly.
 3. **Turnkey Dual-Boot Appliance (`Zero Risk to Stock Firmware`):**
-   Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs cleanly into the secondary firmware slot alongside your existing WeatherXM OS. Your station identity, settings, and stock WeatherXM firmware remain 100% untouched—reboot back and forth in 5 seconds from the touchscreen, top button, or a remote agent command.
+   Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs cleanly into the secondary firmware slot alongside your existing WeatherXM OS. Your station identity, settings, and stock WeatherXM firmware remain 100% untouched—reboot back and forth in seconds from the touchscreen, top button, or a remote agent command.
 4. **Long-Range Sub-GHz LoRa Meets Personal AI:**
    Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—and lays the foundation for bridging long-range outdoor field sensors and peer-to-peer LoRa mesh telemetry directly into personal AI workflows.
 
@@ -63,9 +63,111 @@ Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable wit
   - `display.draw_file` / `display.draw_url` / `display.show_animation` — Draws custom `480×480` cards, charts, or images onto the screen on demand.
   - `wg1200.notify` — Pushes a dismissible alert card onto the screen with an optional audible buzzer chime.
   - `device.discover` & Home-Network Tunnel — Discovers devices on your home Wi-Fi and bridges local smart-home APIs so Muse can trigger actions based on real outdoor weather.
+  - `lan.fetch` — Fetches any URL on your home network that Muse's cloud VM can't reach, such as an IP camera's JPEG snapshot or a local device's JSON API, and hands the bytes to Muse (see [Cameras & home-network devices](#cameras--home-network-devices-lanfetch)).
   - `device.boot_weatherxm` — Reboots the console back into stock WeatherXM OS whenever you want.
-- **1-Click Browser Setup & Non-Destructive Dual-Boot:**
-  - Includes a browser-based **Web Bluetooth + Web Serial Setup Console** (`esp32/tools/muse/muse_full_setup.html`) for easy Wi-Fi and token setup, and installs cleanly alongside your existing WeatherXM firmware (`esp32/tools/wg1200_dualboot.sh`). Full guide in **[`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md)**.
+- **One Top Button, Two Long Holds:** hold **5 s and release** to reset Muse for a fresh 1-click setup, or keep holding to **10 s** to reboot into stock WeatherXM with Muse's setup kept (see [Top button](#top-button)).
+- **1-Click Browser Web Flasher, Web Bluetooth Provisioner & Non-Destructive Dual-Boot:**
+  - Includes a browser-based **Web Flasher** ([`web-flasher/`](web-flasher/)) with the latest RSA-3072 signed `muse-gadget.bin` pre-packaged for safe dual-boot installation, plus the **Full Web Bluetooth Provisioner** ([`esp32/tools/muse/muse_full_setup.html`](esp32/tools/muse/muse_full_setup.html)) for 1-click 365-day token minting and Wi-Fi/VM pairing. Full hardware & protocol reference in **[`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md)**.
+
+---
+
+## Quick Start: Flash & Provision a New WeatherXM `WG1200` (Safe Dual-Boot)
+
+The `WG1200` dual-boot layout installs Muse into the secondary `ota_1` slot (`0x820000`) and uses an isolated NVS partition (`muse_nvs` at `0xF21000`). **Your original WeatherXM firmware (`factory` at `0x20000` and `ota_0` at `0x420000`), Secure Boot V2 bootloader (`0x0`), hardware certificates (`esp_secure_cert` at `0xD000`), NVS (`0xF000`), and SPIFFS (`0xC21000`) are never modified or erased.**
+
+### 1. Start the Local Web Flasher & Provisioning Server
+
+From the repository root, start the local helper server (serves both the **Web Flasher** and the **Web Bluetooth Provisioner** + `api.muse.ai` CORS proxy on port `8099`):
+
+```bash
+python3 esp32/tools/muse/muse_setup_server.py
+```
+
+* **Web Flasher (USB Serial):** `http://localhost:8099/web-flasher/`
+* **Web Bluetooth Provisioner (BLE + 365-Day Token Minting):** `http://localhost:8099/`
+
+---
+
+### 2. Flash a New `WG1200` (Without Touching Stock WeatherXM Firmware)
+
+1. Plug your `WG1200` into your computer via USB-C and open **`http://localhost:8099/web-flasher/`** in **Google Chrome** or **Edge**.
+2. **Step 1 (SDK Token):** Paste your Muse SDK token (`mgst_...`, 48 chars) from [`https://gadgets.muse.ai/settings/sdk-tokens`](https://gadgets.muse.ai/settings/sdk-tokens).
+3. **Step 2 (Install):** Ensure **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)** is selected, click **Connect & install**, and choose the WG1200 USB-Serial port (`wchusbserial*` / `usbserial*`, USB ID `1a86:7523`).
+4. ESP Web Tools writes **only** three non-destructive regions using the latest RSA-3072 signed binary (`web-flasher/firmware/wxm-wg1200/`):
+   * `0xC000` — `partition-table.bin` (adds `muse_nvs` at `0xF21000` while keeping all stock WeatherXM partitions identical)
+   * `0x13000` — `otadata_ota1.bin` (selects `ota_1` as the active boot slot)
+   * `0x820000` — `muse-gadget.bin` (RSA-3072 Secure Boot V2 signed Muse firmware in `ota_1`)
+5. When flashing finishes, **close the installer dialog** — the Web Flasher automatically sends `>sdk_token=mgst_...` over USB serial, stores it in `muse_nvs`, and reboots the gateway into Muse (`MuseGadget-XXXXXX`).
+
+> **CLI Alternative:** You can also back up and flash from the terminal using [`esp32/tools/wg1200_dualboot.sh`](esp32/tools/wg1200_dualboot.sh):
+> ```bash
+> ./esp32/tools/wg1200_dualboot.sh backup /dev/cu.usbserial-1110
+> WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh build
+> WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh install /dev/cu.usbserial-1110
+> ```
+
+---
+
+### 3. Provision the `WG1200` with a Permanent 365-Day Token (Web Bluetooth)
+
+Because a raw web session token (`s0:...`) from `muse.ai` expires after ~1 hour, the provisioner uses it **once** to mint a dedicated **365-day (`31,536,000s`)** device token pair (`access_token` + `refresh_token`) bound to your WG1200's hardware ID (`homelink-xxxxxx`):
+
+1. Open **`http://localhost:8099/`** in **Google Chrome** or **Edge** (desktop: Web Bluetooth).
+2. In **Section 1**, click **Connect ESP32 via Web Bluetooth** and select `MuseGadget-XXXXXX`. The page reads the device's telemetry and auto-fills the **Node ID** (`homelink-xxxxxx`, the lowercase hex suffix of `MuseGadget-XXXXXX`).
+3. In **Section 2A**, enter your **2.4 GHz Wi-Fi SSID & Password** (tick **Remember Wi-Fi password in this browser** to skip it next time) and your **SDK Token (`mgst_...`)**. To have the token filled in for you, put it in the git-ignored `esp32/tools/muse/muse_setup.secrets.json` (copy [`muse_setup.secrets.example.json`](esp32/tools/muse/muse_setup.secrets.example.json)) or set `MUSE_SDK_TOKEN` before starting the server.
+4. In **Section 2B**:
+   * Click **Copy DevTools Token Snippet**, switch to a logged-in [`https://muse.ai`](https://muse.ai) tab, open the DevTools Console (`F12` → Console), paste the snippet and press **Enter** (type `allow pasting` first if Chrome asks). It copies your web `access_token` to the clipboard.
+   * Paste it into **Web User Access Token** and click **Mint 365-Day Device Tokens Now** (`POST https://api.muse.ai/device_token/mint`). Mint **once per device**: minting again for the same Node ID most likely revokes the pair already on the device.
+   * Leave **Muse VM server** empty: the firmware default (`hatch.metaaivm.com`) is right. `muse.ai` is the account API, not the VM server.
+5. In **Section 3**, click **1-Click Full Provision (Home Link + Companion)**. It runs the `v=5` pairing (P-256 ECDH + HKDF-SHA256 + AES-256-GCM), **asks you to tap "Confirm" on the WG1200 touchscreen within 60 s**, writes the Muse VM and token to the Companion service (`muse_ble`), then sends Wi-Fi and the tokens in `provision_v2`.
+6. Within a few seconds the page shows `wifi_connected` and `auth_ok`, the WG1200 restarts, registers with your Muse VM (`link.register`) and is ready for touch queries, live LoRa weather (`sensors.read`), generative `480×480` weather cards and `lan.fetch`.
+
+> **Already set up?** A provisioned WG1200 refuses new pairings (`error_pairing_unavailable`). Hold the top button **5 s and release** (or click **Unpair / Reset Home Link**) to reset Muse, then run 1-click again.
+
+---
+
+### 4. How to Return to Stock WeatherXM Firmware Anytime
+
+Because the stock WeatherXM OS in `ota_0` (`0x420000`) and `factory` (`0x20000`) is untouched, you can switch back to WeatherXM in seconds using any of **4 methods**:
+
+1. **On the WG1200 Touchscreen:** Tap **Settings (gear icon) → WeatherXM**, then tap **`Boot ota_0`** (or **`Boot factory`**) and confirm.
+2. **Physical Top Button (10-Second Hold):** Press and hold the **top physical button (`GPIO38`) for 10 seconds** (beeps at 1.5 s and 5 s, then reboots straight into WeatherXM at 10 s). Muse's setup is kept. Releasing between 5 and 10 s instead resets Muse (see [Top button](#top-button)).
+3. **Browser Web Flasher (`http://localhost:8099/web-flasher/`):** Expand **WeatherXM WG1200 — Return to WeatherXM**, click **Return WG1200 to WeatherXM**, and select the USB port (sends `>boot.weatherxm` over USB serial at `115200` baud).
+4. **CLI Script (works even if Muse is not running):**
+   ```bash
+   ./esp32/tools/wg1200_dualboot.sh boot-weatherxm /dev/cu.usbserial-1110
+   ```
+   *(To switch back to Muse later without reflashing, run `./esp32/tools/wg1200_dualboot.sh boot-muse /dev/cu.usbserial-1110`.)*
+
+---
+
+### Top button
+
+| Hold the top button (`GPIO38`) | What happens |
+|---|---|
+| Short press | Sleep / wake the display (double press: toggle BLE phone setup) |
+| 1.5 s | Beep, and the screen shows `HOLD 5S: RESET MUSE / 10S: WEATHERXM` (let go to cancel) |
+| 5 s, then release | **Resets Muse**: unpairs Link, forgets Wi-Fi, clears the Muse token and VM, and restarts ready for 1-click provisioning |
+| 10 s | **Reboots into stock WeatherXM**, keeping Muse's setup for `boot-muse` later |
+
+The reset waits for the release, so holding on to 10 s never resets Muse.
+
+---
+
+### Cameras & home-network devices (`lan.fetch`)
+
+Muse runs in a cloud VM and can't reach your home network. The WG1200 can: `lan.fetch` has it GET a URL on your LAN and hand the bytes to Muse. Ask Muse something like *"fetch my camera's snapshot with lan.fetch and show it with display.draw_file"*.
+
+```json
+{"url": "http://192.168.1.20/x/ch1.jpg?token=…"}
+```
+
+- **Any camera with an HTTP snapshot URL**, no particular firmware: Thingino (`/x/ch1.jpg?token=…`), Hikvision (`/ISAPI/Streaming/channels/101/picture`), Dahua and Amcrest (`/cgi-bin/snapshot.cgi`), Reolink (`/cgi-bin/api.cgi?cmd=Snap&channel=0`), Axis (`/axis-cgi/jpg/image.cgi`), ESP32-CAM (`/capture`). RTSP-only and cloud cameras work through a bridge such as [go2rtc](https://github.com/AlexxIT/go2rtc) (`/api/frame.jpeg?src=<cam>`), and local JSON APIs work too.
+- **Logins:** a token in the query, `http://user:pass@host/…`, or the `username` and `password` parameters (Basic or Digest). They are never logged or returned; results show the URL as `http://***@host/path?***`.
+- **Home network only:** the host must be, or resolve to, a private IPv4 address (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`).
+- **What comes back:** `bytes`, `sha256`, `content_type`, `jpeg`, `http_status`, `fetch_ms`, and either a file on your VM (`delivery: "file"`, over `POST /fs/write`) or, when the VM refuses that to the gadget's token as it does today, the body as `data_base64` (`delivery: "inline"`, up to 512 KB).
+- **Options:** `max_bytes` (default 1 MiB, up to 2 MiB), `timeout_ms` (default 15 s), `path` on the VM, `delivery` (`auto`, `file`, `inline`).
+- **Bench test over USB:** `>lan.fetch {"url":"http://…"}` on the serial console runs the same command and prints `@lan.fetch {…}`.
 
 ---
 

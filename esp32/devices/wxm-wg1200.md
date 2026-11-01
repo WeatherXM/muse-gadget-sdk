@@ -98,6 +98,22 @@ every stock WeatherXM partition at its exact byte offset and installs Muse into
 
 ### Building, Flashing, and Switching OS
 
+#### Option 1 — Browser Web Flasher (`http://localhost:8099/web-flasher/`, No Toolchain Required)
+
+The repository bundles the latest RSA-3072 signed `muse-gadget.bin` (`0x820000`), `partition-table.bin` (`0xC000`), and `otadata_ota1.bin` (`0x13000`) in [`web-flasher/firmware/wxm-wg1200/`](../../web-flasher/firmware/wxm-wg1200/):
+
+```sh
+python3 esp32/tools/muse/muse_setup_server.py
+```
+
+1. Open **`http://localhost:8099/web-flasher/`** in Google Chrome or Edge.
+2. Enter your **Muse SDK token (`mgst_...`)** in Step 1.
+3. With **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)** selected in Step 2, click **Connect & install** and pick the WG1200 USB port (`1a86:7523`).
+4. Full-chip erase is disabled (`noErase: true` / `new_install_prompt_erase: false`) so stock WeatherXM partitions cannot be erased. When the install dialog closes, the page automatically sends `>sdk_token=mgst_...` over USB serial and reboots into Muse.
+5. To switch back to stock WeatherXM OS from the browser at any time, click **Return WG1200 to WeatherXM** on the Web Flasher page (sends `>boot.weatherxm` over Web Serial).
+
+#### Option 2 — CLI (`tools/wg1200_dualboot.sh`)
+
 Use [`tools/wg1200_dualboot.sh`](../tools/wg1200_dualboot.sh):
 
 ```sh
@@ -238,6 +254,20 @@ When both `access_token` and `refresh_token` are provided with `"token_type": "d
 | 10 s | Reboots into the stock WeatherXM firmware without touching Muse's setup |
 
 The reset waits for the release, so holding on to 10 s never resets Muse.
+
+### Fetching Camera Snapshots and Other LAN URLs (`lan.fetch`)
+
+Muse's VM can't reach the home network, so the WG1200 fetches for it. `lan.fetch` (`main/lan_fetch.c`, `CONFIG_HOMEHUB_LAN_FETCH`, on by default here) GETs an `http://` or `https://` URL whose host is a private IPv4 address, streams the body into PSRAM (`max_bytes`, default 1 MiB, up to 2 MiB) and returns `bytes`, `sha256`, `content_type`, `jpeg`, `http_status` and `fetch_ms`, with the body either written to the VM (`POST /fs/write`) or, when the VM refuses that route to the device's credentials, inline as `data_base64` (up to 512 KB).
+
+| Parameter | Notes |
+|---|---|
+| `url` | Required. A token in the query or `user:pass@` works; neither is logged or returned |
+| `username`, `password` | Basic or Digest login (`CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH` / `_DIGEST_AUTH` are on in `sdkconfig.wxm-wg1200`) |
+| `path` | File on the VM, relative to home (default `lan-fetch/latest.<ext>`) |
+| `max_bytes`, `timeout_ms` | 1024–2097152; 1000–60000 ms (default 15000) |
+| `delivery` | `auto` (default), `file` or `inline` |
+
+Thingino cameras answer their snapshot URL (`/x/ch1.jpg`) with a token in the query: Basic and Digest logins get `401` there. Tested on this board: a 255 KB JPEG in about 200 ms with Basic and Digest logins, Thingino 640×360 frames (about 25 KB) in about 90 ms, and free internal RAM steady at 77 KB across runs. `>lan.fetch {json}` on the USB console runs the same command for bench tests.
 
 ### Returning to WeatherXM Firmware
 

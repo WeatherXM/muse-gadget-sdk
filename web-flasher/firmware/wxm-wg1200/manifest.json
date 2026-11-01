@@ -1,0 +1,25 @@
+{
+  "name": "Muse (WeatherXM WG1200 Dual-Boot)",
+  "version": "999.0.0+bf36800",
+  "new_install_prompt_erase": false,
+  "min_flash_bytes": 15929344,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "partition-table.bin",
+          "offset": 49152
+        },
+        {
+          "path": "otadata_ota1.bin",
+          "offset": 77824
+        },
+        {
+          "path": "muse-gadget.bin",
+          "offset": 8519680
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,15 @@
 [
   {
+    "board": "wxm-wg1200",
+    "name": "WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)",
+    "usb": [
+      "1a86:7523"
+    ],
+    "noErase": true,
+    "dualBoot": true,
+    "note": "<strong>Safe Dual-Boot (WeatherXM Untouched):</strong> Flashes only the dual-boot partition table (<code>0xC000</code>), <code>otadata</code> (<code>0x13000 → ota_1</code>), and the RSA-3072 signed Muse firmware into <code>ota_1</code> (<code>0x820000</code>). Your stock WeatherXM bootloader, Secure Boot keys, certificates (<code>esp_secure_cert</code>), NVS, and WeatherXM firmware (<code>factory</code> / <code>ota_0</code>) are <strong>never</strong> modified or erased. Return to WeatherXM anytime via <strong>Settings → WeatherXM</strong> on the touchscreen, holding the <strong>top button for 10 seconds</strong>, or clicking <strong>Return WG1200 to WeatherXM</strong> below."
+  },
+  {
     "board": "devkit",
     "name": "Espressif ESP32-C5 DevKitC-1"
   },

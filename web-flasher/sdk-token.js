@@ -82,3 +82,66 @@ export async function sendSdkToken(port, token, { timeoutMs = 25000, retryMs = 3
       "If it still doesn't answer, unplug it, plug it back in and try again.",
   );
 }
+
+// Sends >boot.weatherxm over Web Serial so a dual-boot WeatherXM WG1200
+// switches its otadata boot selector back to stock WeatherXM OS (ota_0 / factory)
+// and reboots immediately.
+export async function sendBootWeatherXM(port, { timeoutMs = 15000, retryMs = 2500 } = {}) {
+  try {
+    await port.open({ baudRate: 115200 });
+  } catch (e) {
+    throw new Error(`Couldn't open the port (${e.message}). Close the installer's dialog first.`);
+  }
+  await port.setSignals({ dataTerminalReady: false, requestToSend: false }).catch(() => {});
+
+  const reader = port.readable.getReader();
+  let answer = null;
+  const reading = (async () => {
+    const decoder = new TextDecoder();
+    let text = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return;
+      text += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = text.indexOf("\n")) >= 0) {
+        const line = text.slice(0, nl).replace(/\r$/, "");
+        text = text.slice(nl + 1);
+        const m = line.match(/@boot\.weatherxm\s+(\{.*\})/);
+        if (m) {
+          try {
+            answer = JSON.parse(m[1]);
+          } catch {
+            answer = { ok: true };
+          }
+        }
+      }
+    }
+  })().catch(() => {});
+
+  try {
+    const deadline = Date.now() + timeoutMs;
+    await sleep(600);
+    while (!answer && Date.now() < deadline) {
+      const writer = port.writable.getWriter();
+      try {
+        await writer.write(new TextEncoder().encode("\n>boot.weatherxm\n"));
+      } finally {
+        writer.releaseLock();
+      }
+      const wait = Date.now() + retryMs;
+      while (!answer && Date.now() < wait) await sleep(100);
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    await reading;
+    reader.releaseLock();
+    await port.close().catch(() => {});
+  }
+
+  if (answer?.ok) return answer.payload ?? {};
+  throw new Error(
+    "The WG1200 didn't answer >boot.weatherxm. You can also hold the top physical button for 10 seconds, " +
+      "or tap Settings → WeatherXM on the touchscreen, or run: ./esp32/tools/wg1200_dualboot.sh boot-weatherxm",
+  );
+}

@@ -402,6 +402,7 @@
         </p>
       </div>
       <div class="badges">
+        <a href="/web-flasher/" class="badge" style="text-decoration: none; color: var(--accent); border-color: var(--accent);">⚡ Web Flasher (WG1200 Dual-Boot)</a>
         <span id="proxyBadge" class="badge">Proxy: checking...</span>
         <span id="cryptoBadge" class="badge">Crypto v5: testing...</span>
         <span id="bleBadge" class="badge">BLE: disconnected</span>
@@ -1527,7 +1528,7 @@
         if (readyMsg.status === "error_pairing_unavailable") {
           throw new Error(
             "ESP32 rejected pairing_client_hello: error_pairing_unavailable. The device is already set up and " +
-              "refuses new pairings; use Unpair / Reset Home Link (or hold the button for 5 s) to provision it again."
+              "refuses new pairings; use Unpair / Reset Home Link (or hold the top button 5 s, then release) to provision it again."
           );
         }
         throw new Error(`ESP32 rejected pairing_client_hello: ${readyMsg.status}`);

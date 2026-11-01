@@ -25,6 +25,8 @@ UPSTREAM_API_BASE = "https://api.muse.ai"
 API_VERSION = "1.0.0"
 DEFAULT_PORT = 8099
 HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent.parent.parent
+WEB_FLASHER_DIR = REPO_ROOT / "web-flasher"
 # Local secrets (git-ignored); see muse_setup.secrets.example.json.
 SECRETS_FILE = HERE / "muse_setup.secrets.json"
 
@@ -113,7 +115,26 @@ class MuseSetupHandler(SimpleHTTPRequestHandler):
         self.send_response(HTTPStatus.NO_CONTENT)
         self.end_headers()
 
+    def translate_path(self, path: str) -> str:
+        clean = path.split("?", 1)[0].split("#", 1)[0]
+        if clean == "/web-flasher" or clean.startswith("/web-flasher/"):
+            rel = clean[len("/web-flasher"):].lstrip("/")
+            if not rel:
+                rel = "index.html"
+            target = (WEB_FLASHER_DIR / rel).resolve()
+            # Never outside web-flasher/: the repo holds the signing key.
+            if not target.is_relative_to(WEB_FLASHER_DIR.resolve()):
+                return str(WEB_FLASHER_DIR / "__not_found__")
+            return str(target)
+        return super().translate_path(path)
+
     def do_GET(self) -> None:
+        if self.path == "/web-flasher":
+            self.send_response(HTTPStatus.MOVED_PERMANENTLY)
+            self.send_header("Location", "/web-flasher/")
+            self.end_headers()
+            return
+
         if self.path in ("/", "/index.html"):
             self.path = "/muse_full_setup.html"
             return super().do_GET()
@@ -240,7 +261,8 @@ def main() -> None:
     url = f"http://localhost:{args.port}"
     print(f"============================================================", flush=True)
     print(f" Meta Muse ESP32 Full Setup Server running at: {url}", flush=True)
-    print(f" Serving directory: {HERE}", flush=True)
+    print(f" Web Bluetooth Provisioner: {url}/", flush=True)
+    print(f" Web Flasher (WG1200 Dual-Boot): {url}/web-flasher/", flush=True)
     print(f" Upstream CORS Proxy: {UPSTREAM_API_BASE} (X-API-Version: {API_VERSION})", flush=True)
     print(f"============================================================", flush=True)
     try:
