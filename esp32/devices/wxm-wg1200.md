@@ -98,7 +98,9 @@ every stock WeatherXM partition at its exact byte offset and installs Muse into
 
 ### Building, Flashing, and Switching OS
 
-#### Option 1 — Browser Web Flasher (`http://localhost:8099/web-flasher/`, No Toolchain Required)
+#### Option 1 — Browser Web Flasher ([`https://weatherxm.github.io/muse-gadget-sdk/`](https://weatherxm.github.io/muse-gadget-sdk/) or `http://localhost:8099/web-flasher/`, No Toolchain Required)
+
+The hosted page needs nothing installed: open it in Chrome or Edge and skip to step 2 below. To run it locally instead:
 
 The repository bundles the latest RSA-3072 signed `muse-gadget.bin` (`0x820000`), `partition-table.bin` (`0xC000`), and `otadata_ota1.bin` (`0x13000`) in [`web-flasher/firmware/wxm-wg1200/`](../../web-flasher/firmware/wxm-wg1200/):
 

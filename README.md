@@ -16,9 +16,11 @@ limitations under the License.
 
 # Muse Gadgets — WeatherXM D1 (`WG1200`) Physical AI & Weather Appliance
 
+> WeatherXM's fork of [Meta's Muse Gadgets SDK](https://github.com/facebookincubator/muse-gadget-sdk), porting it to the WeatherXM D1 gateway. The upstream README follows [below](#about-the-muse-gadgets-sdk-upstream).
+
 <p align="center">
   <b>Give your personal AI agent real outdoor senses, eyes on the sky through your own cameras, a 480×480 desk canvas and a Sub-GHz LoRa radio—without losing your stock weather station OS.</b><br>
-  Built for the <a href="https://weatherxm.com/stations/d1-wifi/"><b>WeatherXM D1 Wi-Fi Weather Station (<code>WS1001</code> + <code>WG1200</code>)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a>
+  Built for the <a href="https://weatherxm.com/stations/d1-wifi/"><b>WeatherXM D1 Wi-Fi Weather Station (<code>WS1001</code> + <code>WG1200</code>)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://weatherxm.github.io/muse-gadget-sdk/"><b>⚡ Web Flasher</b></a>
 </p>
 
 | [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) + a LAN camera                                                                                                         | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot)                                                                                                                                                                     |
@@ -122,6 +124,8 @@ See [Cameras & home-network devices](#cameras--home-network-devices-lanfetch) fo
 
 The `WG1200` dual-boot layout installs Muse into the secondary `ota_1` slot (`0x820000`) and uses an isolated NVS partition (`muse_nvs` at `0xF21000`). **Your original WeatherXM firmware (`factory` at `0x20000` and `ota_0` at `0x420000`), Secure Boot V2 bootloader (`0x0`), hardware certificates (`esp_secure_cert` at `0xD000`), NVS (`0xF000`), and SPIFFS (`0xC21000`) are never modified or erased.**
 
+> **Just want to flash?** Open **[https://weatherxm.github.io/muse-gadget-sdk/](https://weatherxm.github.io/muse-gadget-sdk/)** in desktop **Chrome** or **Edge**, plug the `WG1200` in over USB-C and follow step 2 below: no clone, toolchain or local server needed. It serves the same RSA-3072 signed `ota_1` image as [`web-flasher/firmware/wxm-wg1200/`](web-flasher/firmware/wxm-wg1200/). Provisioning (step 3) still runs locally, because it mints device tokens through the local `api.muse.ai` proxy.
+
 ### 1. Start the Local Web Flasher & Provisioning Server
 
 From the repository root, start the local helper server (serves both the **Web Flasher** and the **Web Bluetooth Provisioner** + `api.muse.ai` CORS proxy on port `8099`):
@@ -137,7 +141,7 @@ python3 esp32/tools/muse/muse_setup_server.py
 
 ### 2. Flash a New `WG1200` (Without Touching Stock WeatherXM Firmware)
 
-1. Plug your `WG1200` into your computer via USB-C and open **`http://localhost:8099/web-flasher/`** in **Google Chrome** or **Edge**.
+1. Plug your `WG1200` into your computer via USB-C and open **[https://weatherxm.github.io/muse-gadget-sdk/](https://weatherxm.github.io/muse-gadget-sdk/)** (or the local **`http://localhost:8099/web-flasher/`**) in **Google Chrome** or **Edge**.
 2. **Step 1 (SDK Token):** Paste your Muse SDK token (`mgst_...`, 48 chars) from [`https://gadgets.muse.ai/settings/sdk-tokens`](https://gadgets.muse.ai/settings/sdk-tokens).
 3. **Step 2 (Install):** Ensure **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)** is selected, click **Connect & install**, and choose the WG1200 USB-Serial port (`wchusbserial*` / `usbserial*`, USB ID `1a86:7523`).
 4. ESP Web Tools writes **only** three non-destructive regions using the latest RSA-3072 signed binary (`web-flasher/firmware/wxm-wg1200/`):
@@ -219,31 +223,14 @@ Muse runs in a cloud VM and can't reach your home network. The WG1200 can: `lan.
 - **Options:** `max_bytes` (default 1 MiB, up to 2 MiB), `timeout_ms` (default 15 s), `path` on the VM, `delivery` (`auto`, `file`, `inline`).
 - **Bench test over USB:** `>lan.fetch {"url":"http://…"}` on the serial console runs the same command and prints `@lan.fetch {…}`.
 
-
-
-
-
-
-
-
-
-
-
-
-
-(end of WeatherXM WG1200 specific content)
-
-
-
-
-
-
-
-
-
-
-
 ---
+
+## About the Muse Gadgets SDK (upstream)
+
+> Everything above is specific to the WeatherXM `WG1200`. Everything below is the
+> README of [facebookincubator/muse-gadget-sdk](https://github.com/facebookincubator/muse-gadget-sdk),
+> which this repository forks, kept as it is so the fork can keep merging Meta's updates.
+
 
 <p align="center">
   <picture>
