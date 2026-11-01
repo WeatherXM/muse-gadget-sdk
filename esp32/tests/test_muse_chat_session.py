@@ -96,6 +96,10 @@ void muse_state_set_progress(float) {}
 void muse_state_set_caption(const char *, ...) {}
 void muse_state_poke() {}
 void muse_state_set_asleep(bool) {}
+bool muse_hatch_turn_caption(size_t, char *out, size_t cap) {
+    if (cap) out[0] = '\0';
+    return false;
+}
 static bool s_connected = true;
 static bool has_reply_text() {
     for (int i = 0; i < s_turn.nmsgs; i++) {
