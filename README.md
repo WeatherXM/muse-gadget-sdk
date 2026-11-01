@@ -21,14 +21,14 @@ limitations under the License.
 </p>
 
 <p align="center">
-  <b>Give your personal AI agent real outdoor senses, a 480×480 desk canvas, a Sub-GHz LoRa radio, and a local smart-home bridge—without losing your stock weather station OS.</b><br>
+  <b>Give your personal AI agent real outdoor senses, eyes on the sky through your own cameras, a 480×480 desk canvas and a Sub-GHz LoRa radio—without losing your stock weather station OS.</b><br>
   Built for the <a href="https://weatherxm.com/stations/d1-wifi/"><b>WeatherXM D1 Wi-Fi Weather Station (<code>WS1001</code> + <code>WG1200</code>)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a>
 </p>
 
 | [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot) |
 | :---: | :---: |
 | <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station.jpg" width="410" alt="WeatherXM D1 Outdoor Solar Station and WG1200 4-inch Touchscreen Gateway"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM"> |
-| Solar-powered 8-sensor outdoor array (`WS1001` / `WS1300`) transmitting every ~20s over private Sub-GHz LoRa P2P (up to 1 km) to the indoor `WG1200` 4.0" touchscreen console. | Paired over an encrypted Noise session to the Muse VM—answering live weather queries (`sensors.read`), bridging local LAN devices, and rendering generative `480×480` weather cards on swipe. |
+| Solar-powered 8-sensor outdoor array (`WS1001` / `WS1300`) transmitting every ~20s over private Sub-GHz LoRa P2P (up to 1 km) to the indoor `WG1200` 4.0" touchscreen console. | Paired over an encrypted Noise session to the Muse VM—answering live weather queries (`sensors.read`), fetching camera snapshots from the LAN (`lan.fetch`), and rendering generative `480×480` weather cards on swipe. |
 
 ---
 
@@ -36,14 +36,56 @@ limitations under the License.
 
 Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable with no real-world sensors, while most commercial desk displays cost $180+ just to show static web widgets. Porting the Muse ESP32 SDK to the **[WeatherXM D1 (`WG1200`)](https://weatherxm.com/stations/d1-wifi/)** unlocks four practical capabilities in a single desktop enclosure:
 
-1. **Physical Ground Truth → Local Smart-Home Action (`Sensors + LAN Tunnel`):**
-   Cloud AI agents are typically blind to the actual microclimate outside your window—relying on coarse city forecasts while a 45 km/h gust hits your balcony or rain starts on the patio. By combining live roof telemetry (`sensors.read`) with built-in local network discovery and HTTP tunneling (`device.discover`), an agent can pair real wind gusts, rain rate, barometric pressure drops, and solar irradiance directly with local smart-home hubs, relays, awnings, irrigation controllers, HVAC, and media devices on your Wi-Fi.
+1. **Physical Ground Truth + Eyes on Your Home Network (`sensors.read` + `lan.fetch`):**
+   Cloud AI agents are typically blind to the actual microclimate outside your window—relying on coarse city forecasts while a 45 km/h gust hits your balcony or rain starts on the patio. The `WG1200` gives the agent live roof telemetry (`sensors.read`), finds the devices on your Wi-Fi (`device.discover`), and reads from them on its behalf (`lan.fetch`): a camera's view of the sky, a solar inverter's output, a smart-home hub's state. See [Eyes on the Sky](#eyes-on-the-sky-station--camera--cloud-analytics--collaborative-nowcasts).
 2. **A Dynamic `480×480` Visual Canvas for AI & Automation (Beyond Static Numbers):**
-   Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Any personal AI agent, local home-automation hub, or custom script can turn live weather into bespoke infographics, storm alerts, doorbell/camera snapshots, solar PV gauges, or generative artwork on the fly.
+   Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Any personal AI agent, local home-automation hub, or custom script can turn live weather into bespoke infographics, storm alerts, camera snapshots fetched with `lan.fetch`, solar PV gauges, or generative artwork on the fly.
 3. **Turnkey Dual-Boot Appliance (`Zero Risk to Stock Firmware`):**
    Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs cleanly into the secondary firmware slot alongside your existing WeatherXM OS. Your station identity, settings, and stock WeatherXM firmware remain 100% untouched—reboot back and forth in seconds from the touchscreen, top button, or a remote agent command.
 4. **Long-Range Sub-GHz LoRa Meets Personal AI:**
    Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) through exterior walls up to 1 km away—and lays the foundation for bridging long-range outdoor field sensors and peer-to-peer LoRa mesh telemetry directly into personal AI workflows.
+
+---
+
+## Eyes on the Sky: Station + Camera → Cloud Analytics → Collaborative Nowcasts
+
+### What's new: a cloud agent that can see your sky
+
+A cloud AI agent normally can't see anything on your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor's camera cloud, or exposing the camera to the internet. With `lan.fetch`, the `WG1200` does the fetching for it. Muse asks the gateway for `http://<camera>/snapshot.jpg`, the gateway GETs it on the LAN and returns the JPEG over the encrypted session it already holds to Muse's VM. Nothing listens for inbound connections, and no ports are opened.
+
+What makes that more than a webcam viewer is where it sits: the same device holds **time-aligned, co-located ground truth** from the rooftop station. One agent turn can combine:
+
+- a frame of the sky or the garden from any camera with an HTTP snapshot URL (Thingino, Hikvision, Dahua, Reolink, Axis, ESP32-CAM, or RTSP cameras through go2rtc), and
+- the outdoor readings from the station's latest packet, at most ~20 s old: wind speed, gust and direction, rain rate, solar irradiance, UV, temperature, humidity and pressure (`sensors.read`).
+
+### Cloud analytics on the frame and the telemetry
+
+Muse's VM can run code and vision models on every frame, so the analysis happens in the cloud, not on the ESP32:
+
+- **Cross-checked conditions:** "overcast" from the image against the irradiance drop, "raining" against rain rate and drops on the lens, fog or low visibility against humidity and temperature.
+- **Events the sensors miss:** snow on the ground, hail, a storm cell building on the horizon, smoke, a frozen or misaligned sensor.
+- **Labelled data for free:** every frame stored with its sensor readings and timestamp becomes training data for local sky and precipitation models.
+- **Results back on the desk:** a `480×480` card (`display.draw_file`), an alert with a chime (`wg1200.notify`), or a message on your phone.
+
+### Many stations, many agents: collaborative nowcasting
+
+WeatherXM already runs a network of community weather stations. Give each one a camera and its own agent, and the agents can share what they see:
+
+- **Cloud motion:** timestamped frames from neighbouring cameras give cloud-shadow direction and speed, and two cameras at known positions can triangulate cloud height.
+- **Rain fronts:** rain-rate onset at upwind stations, with wind direction, gives an arrival estimate for the next street over.
+- **Solar output:** cloud-shadow tracks plus irradiance give short-term solar forecasts for nearby PV owners.
+
+Combined, those are **hyperlocal nowcasts (0–60 minutes)** at street scale, built from sensors and cameras on the ground rather than radar or satellite pixels.
+
+### Today vs next
+
+| Works today on the `WG1200` | Next steps (not built yet) |
+|---|---|
+| Muse fetches a camera frame through the gateway (`lan.fetch`), tested with a Thingino camera | Agents discovering and talking to each other (rendezvous) |
+| Live station telemetry from the same device (`sensors.read`) | Signed frames and readings, so other agents can trust where data came from |
+| Analysis in Muse's VM, results drawn on the gateway's screen | Multi-camera cloud tracking, stereo cloud height and the nowcast service itself |
+
+See [Cameras & home-network devices](#cameras--home-network-devices-lanfetch) for how to call `lan.fetch`.
 
 ---
 
@@ -62,8 +104,8 @@ Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable wit
   - `sensors.read` — Lets you ask Muse about your exact rooftop weather, wind gusts, or rain from your phone or laptop at any time.
   - `display.draw_file` / `display.draw_url` / `display.show_animation` — Draws custom `480×480` cards, charts, or images onto the screen on demand.
   - `wg1200.notify` — Pushes a dismissible alert card onto the screen with an optional audible buzzer chime.
-  - `device.discover` & Home-Network Tunnel — Discovers devices on your home Wi-Fi and bridges local smart-home APIs so Muse can trigger actions based on real outdoor weather.
-  - `lan.fetch` — Fetches any URL on your home network that Muse's cloud VM can't reach, such as an IP camera's JPEG snapshot or a local device's JSON API, and hands the bytes to Muse (see [Cameras & home-network devices](#cameras--home-network-devices-lanfetch)).
+  - `device.discover` — Discovers devices on your home Wi-Fi (ARP, mDNS, SSDP, WS-Discovery and more), so Muse knows what's there.
+  - `lan.fetch` — Fetches any URL on your home network that Muse's cloud VM can't reach, such as an IP camera's JPEG snapshot or a local device's JSON API, and hands the bytes to Muse for cloud analytics (see [Cameras & home-network devices](#cameras--home-network-devices-lanfetch)).
   - `device.boot_weatherxm` — Reboots the console back into stock WeatherXM OS whenever you want.
 - **One Top Button, Two Long Holds:** hold **5 s and release** to reset Muse for a fresh 1-click setup, or keep holding to **10 s** to reboot into stock WeatherXM with Muse's setup kept (see [Top button](#top-button)).
 - **1-Click Browser Web Flasher, Web Bluetooth Provisioner & Non-Destructive Dual-Boot:**
