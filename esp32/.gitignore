@@ -53,3 +53,6 @@ __pycache__/
 .gradle/
 .idea/
 local.properties
+
+# Local provisioning secrets (SDK token) for tools/muse/muse_setup_server.py.
+tools/muse/muse_setup.secrets.json

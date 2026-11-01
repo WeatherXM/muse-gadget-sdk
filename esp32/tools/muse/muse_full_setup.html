@@ -366,6 +366,21 @@
       border-radius: 4px;
     }
 
+    pre.snippet {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin: 6px 0 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+      user-select: all;
+    }
+
     .checkbox-label {
       display: inline-flex;
       align-items: center;
@@ -481,7 +496,6 @@
                 autocorrect="off"
                 autocapitalize="off"
                 spellcheck="false"
-                value=""
                 placeholder="mgst_..."
                 aria-describedby="sdkTokenHint"
               >
@@ -490,7 +504,7 @@
               </button>
             </div>
             <span id="sdkTokenHint" class="hint">
-              Create at <code>https://gadgets.muse.ai/settings/sdk-tokens</code>. Also auto-filled if the ESP32 already has one stored in NVS.
+              Create at <code>https://gadgets.muse.ai/settings/sdk-tokens</code>. Auto-filled from <code>muse_setup.secrets.json</code> (git-ignored) or from the ESP32's NVS.
             </span>
           </div>
 
@@ -557,17 +571,19 @@
               aria-describedby="webTokenHint"
             ></textarea>
             <span id="webTokenHint" class="hint">
-              In your logged-in <code>https://muse.ai</code> tab DevTools Console, run this snippet to grab your web token:
+              In your logged-in <code>https://muse.ai</code> tab, open DevTools (F12) &rarr; Console, paste this snippet and press Enter.
+              It copies your web token to the clipboard; paste it above. If Chrome blocks pasting, type <code>allow pasting</code> first.
             </span>
-            <div class="input-row" style="margin-top: 6px;">
-              <input
-                type="text"
-                id="devtoolsSnippetInput"
-                readonly
-                aria-label="DevTools Console Snippet"
-                value="{const cp=typeof copy==='function'?copy:null;fetch('/api/auth/check',{method:'POST'}).then(r=>r.json()).then(d=>{console.log('WEB_TOKEN:',d.access_token);if(cp)cp(d.access_token);navigator.clipboard?.writeText(d.access_token).catch(()=>{});prompt('Copy web access_token:',d.access_token);})}"
-                style="font-size: 0.76rem; color: var(--muted);"
-              >
+            <pre id="devtoolsSnippet" class="snippet" tabindex="0" aria-label="DevTools Console Snippet">(async () =&gt; {
+  const cp = typeof copy === "function" ? copy : null;
+  const r = await fetch("/api/auth/check", { method: "POST", credentials: "include" });
+  const d = await r.json().catch(() =&gt; ({}));
+  const t = d.access_token;
+  if (!t) return console.error("No access_token: are you logged in to muse.ai?", r.status, d);
+  if (cp) { cp(t); console.log("%cWeb access_token copied to clipboard", "color:#3c3"); }
+  return t;
+})()</pre>
+            <div class="btn-row" style="margin-top: 6px;">
               <button type="button" id="btnCopyConsoleCmd" class="small">Copy DevTools Token Snippet</button>
             </div>
             <div class="btn-row" style="margin-top: 8px;">
@@ -1752,8 +1768,25 @@
       }
     }
 
+    // SDK token default from the git-ignored muse_setup.secrets.json, via
+    // muse_setup_server.py. Never overrides a token already in the form.
+    async function loadSecretsDefaults() {
+      try {
+        const res = await fetch("/api/secrets");
+        if (!res.ok) return;
+        const secrets = await res.json();
+        const token = String(secrets.sdk_token || "").trim();
+        if (SDK_TOKEN_REGEX.test(token) && !el("sdkToken").value.trim()) {
+          el("sdkToken").value = token;
+          saveFormToStorage();
+          log(`Loaded SDK token ${token.slice(0, 12)}... from muse_setup.secrets.json`, "log-ok");
+        }
+      } catch (_) {}
+    }
+
     window.addEventListener("DOMContentLoaded", () => {
       loadFormFromStorage();
+      loadSecretsDefaults();
       for (const k of STORAGE_KEYS) {
         el(k)?.addEventListener("input", saveFormToStorage);
       }
@@ -1784,52 +1817,38 @@
 
       el("btnSerialSdkToken").addEventListener("click", writeSdkTokenOverSerial);
 
-      async function copyTextReliable(text, inputEl) {
-        let copied = false;
+      async function copyTextReliable(text) {
         if (navigator.clipboard && window.isSecureContext) {
           try {
             await navigator.clipboard.writeText(text);
-            copied = true;
-          } catch (_) {
-            copied = false;
-          }
+            return true;
+          } catch (_) {}
         }
-        if (!copied) {
-          const target = inputEl || document.createElement("textarea");
-          const isTemp = !inputEl;
-          if (isTemp) {
-            target.value = text;
-            target.style.position = "fixed";
-            target.style.opacity = "0";
-            document.body.appendChild(target);
-          }
-          target.focus();
-          target.select();
-          target.setSelectionRange(0, target.value.length);
-          try {
-            copied = document.execCommand("copy");
-          } catch (_) {
-            copied = false;
-          }
-          if (isTemp) {
-            document.body.removeChild(target);
-          }
-        } else if (inputEl) {
-          inputEl.focus();
-          inputEl.select();
-        }
+        const tmp = document.createElement("textarea");
+        tmp.value = text;
+        tmp.style.position = "fixed";
+        tmp.style.opacity = "0";
+        document.body.appendChild(tmp);
+        tmp.select();
+        let copied = false;
+        try {
+          copied = document.execCommand("copy");
+        } catch (_) {}
+        document.body.removeChild(tmp);
         return copied;
       }
 
-      el("devtoolsSnippetInput").addEventListener("click", () => {
-        el("devtoolsSnippetInput").select();
-      });
+      function selectSnippet() {
+        const range = document.createRange();
+        range.selectNodeContents(el("devtoolsSnippet"));
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
 
       el("btnCopyConsoleCmd").addEventListener("click", async () => {
-        const snippetInput = el("devtoolsSnippetInput");
-        const snippet = snippetInput.value;
         const btn = el("btnCopyConsoleCmd");
-        const ok = await copyTextReliable(snippet, snippetInput);
+        const ok = await copyTextReliable(el("devtoolsSnippet").textContent);
         if (ok) {
           const orig = btn.textContent;
           btn.textContent = "Copied!";
@@ -1840,9 +1859,8 @@
           }, 2000);
           log("Copied DevTools snippet to clipboard! Paste it into your https://muse.ai DevTools Console.", "log-ok");
         } else {
-          snippetInput.focus();
-          snippetInput.select();
-          log("Selected snippet text in the box — press Cmd+C to copy it.", "log-warn");
+          selectSnippet();
+          log("Selected the snippet text — press Ctrl+C (Cmd+C on macOS) to copy it.", "log-warn");
         }
       });
 

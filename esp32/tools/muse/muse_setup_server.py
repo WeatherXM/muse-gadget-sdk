@@ -25,6 +25,22 @@ UPSTREAM_API_BASE = "https://api.muse.ai"
 API_VERSION = "1.0.0"
 DEFAULT_PORT = 8099
 HERE = Path(__file__).resolve().parent
+# Local secrets (git-ignored); see muse_setup.secrets.example.json.
+SECRETS_FILE = HERE / "muse_setup.secrets.json"
+
+
+def _load_secrets() -> dict[str, str]:
+    secrets: dict[str, str] = {}
+    try:
+        data = json.loads(SECRETS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            secrets = {k: str(v) for k, v in data.items() if isinstance(v, str)}
+    except (OSError, json.JSONDecodeError):
+        pass
+    env_token = os.environ.get("MUSE_SDK_TOKEN", "").strip()
+    if env_token:
+        secrets["sdk_token"] = env_token
+    return secrets
 
 
 def _upstream_request(
@@ -101,6 +117,15 @@ class MuseSetupHandler(SimpleHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self.path = "/muse_full_setup.html"
             return super().do_GET()
+
+        if self.path == "/api/secrets":
+            secrets = _load_secrets()
+            self._send_json(HTTPStatus.OK, {"sdk_token": secrets.get("sdk_token", "")})
+            return
+
+        if Path(self.translate_path(self.path)).resolve() == SECRETS_FILE:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
 
         if self.path == "/api/health":
             self._send_json(
