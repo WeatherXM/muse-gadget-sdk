@@ -45,6 +45,23 @@ export function installFlasherHooks({ getSelection, onInstalled }) {
     return lastPort;
   };
 
+  // In esp-web-tools@10.4.0, setting new_install_prompt_erase: false in the
+  // manifest still calls _startInstall(true), which shows "All data on the
+  // device will be erased" and enters the "Erasing device..." step. Override
+  // _startInstall once ewt-install-dialog is defined so noErase boards never
+  // request an erase.
+  if ("customElements" in window) {
+    customElements.whenDefined("ewt-install-dialog").then((EwtInstallDialog) => {
+      const proto = (EwtInstallDialog ?? customElements.get("ewt-install-dialog"))?.prototype;
+      if (!proto || typeof proto._startInstall !== "function") return;
+      const origStartInstall = proto._startInstall;
+      proto._startInstall = function (erase) {
+        const { noErase } = getSelection();
+        return origStartInstall.call(this, noErase ? false : erase);
+      };
+    });
+  }
+
   let loader;
   Object.defineProperty(window, "esploader", {
     configurable: true,

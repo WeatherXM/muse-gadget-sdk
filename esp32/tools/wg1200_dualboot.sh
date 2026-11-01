@@ -19,7 +19,8 @@
 set -euo pipefail
 
 CMD=${1:-help}
-PORT=${2:-/dev/cu.usbserial-1110}
+DEFAULT_PORT=$(ls /dev/cu.usbmodem* /dev/cu.usbserial-* 2>/dev/null | head -n 1 || true)
+PORT=${2:-${PORT:-${DEFAULT_PORT:-/dev/cu.usbserial-1110}}}
 BAUD=${BAUD:-460800}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BUILD_DIR="$ROOT/build-muse-wxm-wg1200"

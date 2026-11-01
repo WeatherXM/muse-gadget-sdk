@@ -46,6 +46,9 @@ export function installPacedSerial(SerialPortClass) {
     get() {
       const real = writable.get.call(this);
       if (!pacing || !real) return real;
+      if (pacing.usbVendorId && this.getInfo?.().usbVendorId !== pacing.usbVendorId) {
+        return real;
+      }
       let stream = paced.get(real);
       if (!stream) {
         const port = this;
@@ -85,7 +88,9 @@ export function installPacedSerial(SerialPortClass) {
     // chunk: bytes per write. factor: how many times as long as the chunk
     // takes on the wire to wait after it. null turns pacing off.
     set(settings) {
-      pacing = settings ? { chunk: settings.chunk, factor: settings.factor } : null;
+      pacing = settings
+        ? { chunk: settings.chunk, factor: settings.factor, usbVendorId: settings.usbVendorId }
+        : null;
     },
   };
 }

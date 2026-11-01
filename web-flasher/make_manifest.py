@@ -119,6 +119,9 @@ def main():
         # Offer to erase on first install (except dual-boot boards where erase is forbidden);
         # updates keep pairing and Wi-Fi.
         "new_install_prompt_erase": prompt_erase,
+        # Muse firmware does not speak Improv Serial; skip the pre/post-install
+        # Improv probe so the port is clean for flashing and closes immediately for >sdk_token.
+        "new_install_improv_wait_time": 0,
         # Not ESP Web Tools': the page refuses boards with less flash.
         "min_flash_bytes": partitions_end(table),
         "builds": [{"chipFamily": CHIP_FAMILIES[chip], "parts": parts}],

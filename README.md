@@ -144,7 +144,7 @@ python3 esp32/tools/muse/muse_setup_server.py
 
 1. Plug your `WG1200` into your computer via USB-C and open **[https://weatherxm.github.io/muse-gadget-sdk/](https://weatherxm.github.io/muse-gadget-sdk/)** (or the local **`http://localhost:8099/web-flasher/`**) in **Google Chrome** or **Edge**.
 2. **Step 1 (SDK Token):** Paste your Muse SDK token (`mgst_...`, 48 chars) from [`https://gadgets.muse.ai/settings/sdk-tokens`](https://gadgets.muse.ai/settings/sdk-tokens).
-3. **Step 2 (Install):** Ensure **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)** is selected, click **Connect & install**, and choose the WG1200 USB-Serial port (`wchusbserial*` / `usbserial*`, USB ID `1a86:7523`).
+3. **Step 2 (Install):** Ensure **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)** is selected, click **Connect & install**, and select **`USB JTAG/serial debug unit`** (`cu.usbmodem*`, USB ID `303a:1001`) for fast (~20s) driverless flashing (the secondary `USB Serial` port `cu.usbserial*` / `1a86:7523` is also supported with automatic write pacing).
 4. ESP Web Tools writes **only** three non-destructive regions using the latest RSA-3072 signed binary (`web-flasher/firmware/wxm-wg1200/`):
    * `0xC000` — `partition-table.bin` (adds `muse_nvs` at `0xF21000` while keeping all stock WeatherXM partitions identical)
    * `0x13000` — `otadata_ota1.bin` (selects `ota_1` as the active boot slot)
