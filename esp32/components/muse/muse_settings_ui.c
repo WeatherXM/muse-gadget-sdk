@@ -1762,7 +1762,7 @@ static void build_weatherxm_page(lv_obj_t *tile)
     s_wxm_running = info_row(s_wxm_slots_col, "Active (ota_1)");
     slot_card(s_wxm_slots_col, "factory", &s_wxm_factory, on_select_boot_slot, (void *)(intptr_t)1);
     slot_card(s_wxm_slots_col, "ota_0", &s_wxm_ota0, on_select_boot_slot, (void *)(intptr_t)2);
-    note(s_wxm_slots_col, "WeatherXM keys, NVS & SPIFFS are untouched. Hold top button 5s anytime for WeatherXM.");
+    note(s_wxm_slots_col, "WeatherXM keys, NVS & SPIFFS are untouched. Hold top button 10s anytime for WeatherXM.");
 
     s_wxm_confirm_col = column(list);
     lv_obj_add_flag(s_wxm_confirm_col, LV_OBJ_FLAG_HIDDEN);

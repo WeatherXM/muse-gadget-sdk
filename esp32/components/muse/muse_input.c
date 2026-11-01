@@ -210,6 +210,7 @@ static void aux_button(bool pressed, bool edge)
 #if CONFIG_MUSE_BOARD_WXM_WG1200
     static int64_t press_start_us;
     static bool boot_triggered;
+    static bool reset_armed;
 #endif
 
     if (sleep_in && --sleep_in == 0) {
@@ -222,6 +223,7 @@ static void aux_button(bool pressed, bool edge)
 #if CONFIG_MUSE_BOARD_WXM_WG1200
         press_start_us = esp_timer_get_time();
         boot_triggered = false;
+        reset_armed = false;
 #endif
         if (swallow) {
             set_asleep(false, muse_board->aux_button);
@@ -233,25 +235,45 @@ static void aux_button(bool pressed, bool edge)
         return;
     }
 #if CONFIG_MUSE_BOARD_WXM_WG1200
+    /* 5 s hold, then release: reset Muse (Link pairing, Wi-Fi, Muse token and
+     * VM). Keep holding to 10 s: reboot into WeatherXM, leaving Muse as it is.
+     * The reset waits for the release so the way to 10 s never triggers it. */
     if (pressed) {
         int64_t held_us = esp_timer_get_time() - press_start_us;
         if (held_us >= 1500000 && !hinted) {
             uint32_t v = UINT32_MAX;
             muse_state_caption(saved_caption, sizeof(saved_caption), &v);
             muse_state_poke();
-            muse_state_set_caption("HOLD 5S FOR WEATHERXM...");
+            muse_state_set_caption("HOLD 5S: RESET MUSE / 10S: WEATHERXM");
             wg1200_buzzer_beep(30);
             hinted = true;
-        } else if (held_us >= 5000000 && !boot_triggered) {
+        } else if (held_us >= 10000000 && !boot_triggered) {
             boot_triggered = true;
+            reset_armed = false;
             swallow = true;
             muse_state_poke();
+            muse_state_set_caption("BOOTING WEATHERXM...");
             wg1200_buzzer_beep(120);
             wxm_boot_return_to_weatherxm();
+        } else if (held_us >= 5000000 && !reset_armed && !boot_triggered) {
+            reset_armed = true;
+            muse_state_poke();
+            muse_state_set_caption("RELEASE: RESET MUSE / HOLD 10S: WEATHERXM");
+            wg1200_buzzer_beep(60);
         }
         return;
     }
     if (edge && !pressed && boot_triggered) {
+        return;
+    }
+    if (edge && !pressed && reset_armed) {
+        reset_armed = false;
+        swallow = true;
+        muse_state_set_caption("RESETTING MUSE...");
+        wg1200_buzzer_beep(120);
+        muse_settings_set_hatch_token("", false);
+        muse_settings_set_hatch_vm("");
+        muse_link_reset_setup();   /* wipes pairing and Wi-Fi, then restarts */
         return;
     }
 #endif

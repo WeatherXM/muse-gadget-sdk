@@ -15,7 +15,8 @@
  * - Button: GPIO38 (top active-low user button)
  *   - Short press: sleep/wake display
  *   - Double press: toggle BLE phone setup
- *   - 5-second hold: hardware failsafe to reboot into WeatherXM firmware
+ *   - 5-second hold, then release: reset Muse (pairing, Wi-Fi, Muse token)
+ *   - 10-second hold: hardware failsafe to reboot into WeatherXM firmware
  */
 
 #include "boards/board_wxm_wg1200.h"

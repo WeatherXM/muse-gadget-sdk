@@ -229,12 +229,22 @@ In [`esp32/main/ble_server.c`](../main/ble_server.c#L397-L441) and [`esp32/main/
 ```
 When both `access_token` and `refresh_token` are provided with `"token_type": "device"`, [`accept_pairing_credentials()`](../main/app.c#L817-L853) stores both tokens directly in the `muse_nvs` (`config_store`) partition and marks `setup_complete = 1`.
 
+### Top Button Holds
+
+| Hold | Action |
+|---|---|
+| 1.5 s | Shows `HOLD 5S: RESET MUSE / 10S: WEATHERXM` (release to cancel) |
+| 5 s, then release | Resets Muse: unpairs Link, forgets Wi-Fi, clears the Muse token and VM, and restarts ready for 1-click provisioning |
+| 10 s | Reboots into the stock WeatherXM firmware without touching Muse's setup |
+
+The reset waits for the release, so holding on to 10 s never resets Muse.
+
 ### Returning to WeatherXM Firmware
 
 You can switch back to the stock WeatherXM firmware at any time with zero data loss:
 
 1. **On-screen UI**: Open **Settings → Reboot to WeatherXM** and tap **Reboot to WeatherXM**.
-2. **Physical Button**: Hold the top button (`GPIO38`) for **5 seconds** at boot while the screen shows `"Hold top button to boot WeatherXM..."`.
+2. **Physical Button**: Hold the top button (`GPIO38`) for **10 seconds**. The Muse setup is kept, so `boot-muse` (below) brings it back as it was.
 3. **Over USB**:
    ```sh
    ./tools/wg1200_dualboot.sh boot-weatherxm /dev/cu.usbserial-1110
