@@ -103,9 +103,13 @@ typedef struct {
 } job_t;
 
 static atomic_bool s_busy;
-// Set once the VM refuses /fs/write (403, 404 or 405): later fetches in auto
-// mode go straight to inline results.
-static bool s_fs_write_refused;
+// When the VM last refused /fs/write (403, 404 or 405), and what it said:
+// for FS_WRITE_RETRY_US after that, auto mode goes straight to inline and
+// reports the refusal. Then it tries the file again, so a scope granted
+// later takes effect without a restart.
+#define FS_WRITE_RETRY_US   (10 * 60 * 1000000LL)
+static int64_t s_fs_write_refused_us;
+static char s_fs_write_refusal[UPLOAD_ERROR_MAX + 64];
 
 static size_t internal_free(void) {
     return heap_caps_get_free_size(BYTE_CAPS);
@@ -537,7 +541,9 @@ static cJSON *deliver(job_t *job, const download_t *d, const char *path, bool jp
     cJSON_AddStringToObject(payload, "url", job->shown_url);
 
     char message[UPLOAD_ERROR_MAX + 64];
-    bool to_file = job->delivery == 'f' || (job->delivery == 'a' && !s_fs_write_refused);
+    bool recently_refused = s_fs_write_refused_us
+        && esp_timer_get_time() - s_fs_write_refused_us < FS_WRITE_RETRY_US;
+    bool to_file = job->delivery == 'f' || (job->delivery == 'a' && !recently_refused);
     if (to_file) {
         int64_t up_start = esp_timer_get_time();
         int status = 0;
@@ -545,6 +551,8 @@ static cJSON *deliver(job_t *job, const download_t *d, const char *path, bool jp
         ESP_LOGI(TAG, "wrote %u bytes to %s: %s", (unsigned)d->len, path,
                  written ? "ok" : message);
         if (written) {
+            s_fs_write_refused_us = 0;
+            s_fs_write_refusal[0] = '\0';
             cJSON_AddStringToObject(payload, "delivery", "file");
             cJSON_AddStringToObject(payload, "path", path);
             cJSON_AddNumberToObject(payload, "upload_ms",
@@ -552,11 +560,18 @@ static cJSON *deliver(job_t *job, const download_t *d, const char *path, bool jp
             return result;
         }
         bool refused = status == 403 || status == 404 || status == 405;
-        if (refused) s_fs_write_refused = true;
+        if (refused) {
+            s_fs_write_refused_us = esp_timer_get_time();
+            strlcpy(s_fs_write_refusal, message, sizeof(s_fs_write_refusal));
+        }
         if (job->delivery == 'f' || !refused) {
             cJSON_Delete(result);
             return error_result("upload_failed", message);
         }
+    }
+    // Auto mode after a refusal: say why the body came back inline.
+    if (job->delivery == 'a' && s_fs_write_refusal[0]) {
+        cJSON_AddStringToObject(payload, "file_error", s_fs_write_refusal);
     }
     if (!add_inline(payload, d, message, sizeof(message))) {
         cJSON_Delete(result);

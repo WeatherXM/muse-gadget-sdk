@@ -38,8 +38,9 @@ extern "C" {
 //   max_bytes   1 KiB..2 MiB, default 1 MiB
 //   timeout_ms  for the download, 1000..60000, default 15000
 //   delivery    "file": POST /fs/write only; "inline": base64 in the result
-//               (up to 512 KB); "auto" (default): the file, or inline once
-//               the VM refuses /fs/write to this gadget's credentials
+//               (up to 512 KB); "auto" (default): the file, or inline with
+//               file_error once the VM refuses /fs/write to this gadget's
+//               credentials (retried 10 minutes after a refusal)
 // Returns {"_async": true} and later sends the result on the session, or an
 // error result at once. Never logs or returns the password.
 cJSON *lan_fetch_command(cJSON *params, const char *request_id,
