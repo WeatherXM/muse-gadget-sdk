@@ -109,6 +109,13 @@ case "$CMD" in
             espsecure.py verify_signature --version 2 --keyfile "$SIGNING_KEY" "$BUILD_DIR/muse-gadget.bin"
         fi
         MUSE_FLASHER_FW_DIR="$ROOT/../muse-flasher/public/firmware/muse"
+        # The flashers are public: an image with CONFIG_GADGET_SDK_TOKEN compiled
+        # in would publish the maker's token. They send each user's own instead.
+        if LC_ALL=C grep -a -q -E 'mgst_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]' "$BUILD_DIR/muse-gadget.bin"; then
+            echo "Not syncing to muse-flasher: $BUILD_DIR/muse-gadget.bin has an SDK token compiled in." >&2
+            echo "Set CONFIG_GADGET_SDK_TOKEN=\"\" in $BUILD_DIR/sdkconfig and build again." >&2
+            exit 1
+        fi
         if [ -d "$MUSE_FLASHER_FW_DIR" ]; then
             echo "Syncing signed WG1200 artifacts to $MUSE_FLASHER_FW_DIR..."
             cp "$BUILD_DIR/muse-gadget.bin" "$MUSE_FLASHER_FW_DIR/muse-gadget.bin"

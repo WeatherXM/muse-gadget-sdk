@@ -8,9 +8,20 @@ const rootDir = path.resolve(__dirname, '..');
 const firmwareDir = path.join(rootDir, 'public', 'firmware');
 const manifestPath = path.join(firmwareDir, 'manifest.json');
 
+// A build with CONFIG_GADGET_SDK_TOKEN set compiles the maker's token into the
+// image, and everything under public/ is served to anyone. Refuse to publish it:
+// the page sends each user's own token over USB after flashing instead.
+const SDK_TOKEN_PATTERN = /mgst_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]/;
+
 function computeFileInfo(relativePath) {
   const fullPath = path.join(rootDir, 'public', relativePath.replace(/^\//, ''));
   const bytes = fs.readFileSync(fullPath);
+  if (SDK_TOKEN_PATTERN.test(bytes.toString('latin1'))) {
+    console.error(
+      `${relativePath} has an SDK token compiled in. Rebuild it with CONFIG_GADGET_SDK_TOKEN empty; never publish it.`,
+    );
+    process.exit(1);
+  }
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
   const md5 = crypto.createHash('md5').update(bytes).digest('hex');
 
