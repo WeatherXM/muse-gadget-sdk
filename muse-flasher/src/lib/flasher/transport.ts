@@ -11,6 +11,7 @@ import {
   classifyUsbLink,
   FLASH_BAUD_RATE,
   FLASH_BAUD_RATE_CH340,
+  SERIAL_BUFFER_SIZE,
   OTADATA_OFFSET,
   OTADATA_SIZE,
   OTA_0_OFFSET,
@@ -45,6 +46,7 @@ export function patchTransportRead(): void {
     let isEscaping = false;
     let readBytes: Uint8Array | null = null;
     let leadingNoiseCount = 0;
+    let discardedNoise = 0;
     const MAX_LEADING_NOISE = 2048;
 
     while (true) {
@@ -62,10 +64,13 @@ export function patchTransportRead(): void {
       }
 
       if (!readBytes || readBytes.length === 0) {
+        // Say what did arrive, so a stall can be told apart from lost bytes.
         const msg =
           partialPacket === null
-            ? 'Serial data stream stopped: Possible serial noise or corruption.'
-            : 'No serial data received.';
+            ? `Serial data stream stopped: Possible serial noise or corruption. (no frame started in ${timeout / 1000} s${
+                discardedNoise ? `; ${discardedNoise} stray bytes discarded` : ''
+              })`
+            : `No serial data received. (frame stopped after ${partialPacket.length} bytes)`;
         if (this.tracing) {
           this.trace(msg);
         }
@@ -84,6 +89,7 @@ export function patchTransportRead(): void {
             leadingNoiseCount = 0;
           } else {
             leadingNoiseCount++;
+            discardedNoise++;
             if (leadingNoiseCount > MAX_LEADING_NOISE) {
               const remainingData = this.buffer;
               this.detectPanicHandler(new Uint8Array([...readBytes, ...(remainingData || [])]));
@@ -313,10 +319,30 @@ export function patchEsploaderReadFlash(): void {
       throw new ESPError('Failed to read memory: ' + res);
     }
     let resp = new Uint8Array(0);
+    const frames: number[] = [];
+    const where = () =>
+      `${resp.length}/${size} bytes in ${frames.length} frame${frames.length === 1 ? '' : 's'}${
+        frames.length ? ` (${frames.join(', ')})` : ''
+      }, ${this.transport.buffer?.length ?? 0} unparsed`;
     while (resp.length < size) {
-      const packet: Uint8Array = await this.transport.read(READ_FLASH_PACKET_TIMEOUT_MS);
+      let packet: Uint8Array;
+      try {
+        packet = await this.transport.read(READ_FLASH_PACKET_TIMEOUT_MS);
+      } catch (err) {
+        throw new ESPError(`${err instanceof Error ? err.message : String(err)} [${where()}]`);
+      }
       if (packet.length > 0) {
+        frames.push(packet.length);
         resp = this._appendArray(resp, packet);
+        // The stub sends whole 4 KB frames until the last one, as esptool.py
+        // checks: a short frame means bytes were lost on the way, so stop here
+        // instead of acking a wrong total and waiting for data that won't come.
+        if (resp.length < size && packet.length < 0x1000) {
+          throw new ESPError(`Lost serial data: a ${packet.length}-byte frame where 4096 bytes were due [${where()}]`);
+        }
+        if (resp.length > size) {
+          throw new ESPError(`Read more than requested [${where()}]`);
+        }
         await this.transport.write(this._intToByteArray(resp.length));
         onPacketReceived?.(packet, resp.length, size);
       }
@@ -367,6 +393,14 @@ export class EspFlashSession {
     (this.transport as any).setDeviceLostCallback?.(() => {
       this.logger.warn('The WG1200 dropped off USB mid-operation (it reset or was unplugged).');
     });
+    // esptool-js's read loop reports Chrome's serial read errors (an overrun,
+    // say) only to its trace and carries on without the lost bytes; log them.
+    const transport = this.transport as any;
+    const trace = transport.trace.bind(transport);
+    transport.trace = (message: string) => {
+      trace(message);
+      if (/serial port error/i.test(message)) this.logger.warn(`USB serial: ${message}`);
+    };
     const terminal = {
       clean: () => {},
       writeLine: (data: string) => {
@@ -394,6 +428,7 @@ export class EspFlashSession {
       romBaudrate: 115200,
       terminal,
       debugLogging: false,
+      serialOptions: { baudRate: baudrate, bufferSize: SERIAL_BUFFER_SIZE },
     });
 
     await this.loader.main();

@@ -1,4 +1,4 @@
-import { SERIAL_MONITOR_BAUD } from './constants';
+import { SERIAL_BUFFER_SIZE, SERIAL_MONITOR_BAUD } from './constants';
 import type { FirmwareFlavor } from './appDescriptor';
 
 export interface PostBootMonitorResult {
@@ -92,7 +92,7 @@ async function openConsolePort(
     for (const port of candidates) {
       try {
         if (!port.readable) {
-          await port.open({ baudRate: SERIAL_MONITOR_BAUD });
+          await port.open({ baudRate: SERIAL_MONITOR_BAUD, bufferSize: SERIAL_BUFFER_SIZE });
         }
         // Leave EN and BOOT alone: on the CH340 bridge DTR/RTS drive them.
         await port.setSignals({ dataTerminalReady: false, requestToSend: false }).catch(() => {});

@@ -5,6 +5,9 @@ export const FLASH_BAUD_RATE = 460800;
 // The CH340 bridge (1a86:7523) needs paced writes; 115200 matches web-flasher/boards.json.
 export const FLASH_BAUD_RATE_CH340 = 115200;
 export const SERIAL_MONITOR_BAUD = 115200;
+// Web Serial's default 255-byte buffer is a fraction of one 4 KB flash-read
+// frame; let Chrome take whole frames off the port while the page is busy.
+export const SERIAL_BUFFER_SIZE = 64 * 1024;
 
 // WG1200 USB devices behind its internal hub: the ESP32-S3's own USB-JTAG/serial
 // port and the CH340 UART0 bridge. Both reach the ROM loader and the console,

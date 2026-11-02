@@ -50,36 +50,59 @@ describe('ESP32-S3 native USB handling', () => {
 });
 
 describe('READ_FLASH over the esptool-js stub', () => {
-  it('returns the data, acks each packet and consumes the trailing MD5 digest', async () => {
+  // A stand-in loader whose transport replays the given frames.
+  const fakeLoader = (queue: Uint8Array[], timeouts: number[] = [], writes: Uint8Array[] = []) => ({
+    IS_STUB: true,
+    ESP_READ_FLASH: 0xd2,
+    _appendArray: (a: Uint8Array, b: Uint8Array) => Uint8Array.from([...a, ...b]),
+    _intToByteArray: (n: number) => Uint8Array.from([n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff]),
+    checkCommand: async () => 0,
+    transport: {
+      buffer: new Uint8Array(0),
+      read: async (timeout: number) => {
+        timeouts.push(timeout);
+        const next = queue.shift();
+        if (!next) throw new Error('No serial data received.');
+        return next;
+      },
+      write: async (b: Uint8Array) => {
+        writes.push(b);
+      },
+    },
+  });
+  const readFlash = async (loader: object, addr: number, size: number): Promise<Uint8Array> => {
     const esptool = await import('esptool-js');
     await import('../src/lib/flasher/transport');
-    const data = Uint8Array.from({ length: 8 }, (_, i) => i + 1);
-    const queue: Uint8Array[] = [data.subarray(0, 4), data.subarray(4), new Uint8Array(16)];
+    return (esptool.ESPLoader.prototype as any).readFlash.call(loader, addr, size);
+  };
+  const le32 = (b: Uint8Array) => b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
+
+  it('returns the data, acks each frame and consumes the trailing MD5 digest', async () => {
+    const data = Uint8Array.from({ length: 0x1000 + 8 }, (_, i) => i & 0xff);
+    const queue = [data.subarray(0, 0x1000), data.subarray(0x1000), new Uint8Array(16)];
     const timeouts: number[] = [];
     const writes: Uint8Array[] = [];
-    const fake = {
-      IS_STUB: true,
-      ESP_READ_FLASH: 0xd2,
-      _appendArray: (a: Uint8Array, b: Uint8Array) => Uint8Array.from([...a, ...b]),
-      _intToByteArray: (n: number) => Uint8Array.from([n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff]),
-      checkCommand: async () => 0,
-      transport: {
-        read: async (timeout: number) => {
-          timeouts.push(timeout);
-          const next = queue.shift();
-          if (!next) throw new Error('No serial data received.');
-          return next;
-        },
-        write: async (b: Uint8Array) => {
-          writes.push(b);
-        },
-      },
-    };
-    const out: Uint8Array = await (esptool.ESPLoader.prototype as any).readFlash.call(fake, 0x13000, 8);
+    const out = await readFlash(fakeLoader(queue, timeouts, writes), 0x13000, data.length);
     expect(Array.from(out)).toEqual(Array.from(data));
-    expect(writes.map((w) => w[0])).toEqual([4, 8]); // acks carry the running total
+    expect(writes.map(le32)).toEqual([0x1000, 0x1008]); // acks carry the running total
     expect(queue).toHaveLength(0); // the digest was read, not left for the next command
     expect(timeouts.slice(0, 2)).toEqual([3000, 3000]); // not esptool-js's 100 s
+  });
+
+  it('stops at a short frame, which means bytes were lost, and says what arrived', async () => {
+    const writes: Uint8Array[] = [];
+    const queue = [new Uint8Array(0x1000), new Uint8Array(0xa00)];
+    await expect(readFlash(fakeLoader(queue, [], writes), 0x420000, 0x3000)).rejects.toThrow(
+      /Lost serial data: a 2560-byte frame where 4096 bytes were due \[6656\/12288 bytes in 2 frames \(4096, 2560\)/,
+    );
+    expect(writes.map(le32)).toEqual([0x1000]); // the short frame is never acked
+  });
+
+  it('says how far a stalled read got', async () => {
+    const queue = [new Uint8Array(0x1000)];
+    await expect(readFlash(fakeLoader(queue), 0x13000, 0x2000)).rejects.toThrow(
+      /No serial data received\. \[4096\/8192 bytes in 1 frame \(4096\), 0 unparsed\]/,
+    );
   });
 });
 
