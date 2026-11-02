@@ -137,6 +137,11 @@ printf '>sdk_token=mgst_...\n' > /dev/cu.usbserial-1110
 
 **Versioning.** Upstream builds report `999.0.0` (`esp32/version.txt`, Meta's placeholder for builds that don't take Muse OTA updates). The WG1200 build stamps its own version instead: the semver in [`devices/wxm-wg1200.version`](wxm-wg1200.version), the commit, and `-dirty` for uncommitted changes under `esp32/`, for example `0.1.0-g1a2b3c4`. Bump that file for each release. Muse OTA stays off on the WG1200 either way: [`main/ota.c`](../main/ota.c) refuses any update whose target would be `ota_0` or `factory`.
 
+**Build settings.** Set them in `build-muse-wxm-wg1200/sdkconfig` (or `idf.py -B build-muse-wxm-wg1200 menuconfig`, under Muse):
+
+- `CONFIG_MUSE_WG1200_FORECAST_LOCATION` (default `"Athens"`): where the swipe-down forecast card is for until the outdoor station's GPS fix arrives. Muse decodes the station's `WEATHER_GPS_SIGNED` packets and keeps the last fix in `muse_nvs`; the station sends one only when WeatherXM's firmware asks (a signed ack Muse can't make), so on a fresh install the fallback is used. Preferences you've told Muse (location, providers, time range, style) override both.
+- `CONFIG_GADGET_SDK_TOKEN`: keep it `""`. A token set here is compiled into the image, and the flashers serve their images publicly; they send each user's own token over USB instead. `wg1200_dualboot.sh build` and the muse-flasher manifest script both refuse an image with a token in it.
+
 ---
 
 ## Provisioning a Permanent 365-Day Device Token (`provision_v2` + `muse_ble`)

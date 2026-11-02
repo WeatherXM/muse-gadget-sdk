@@ -61,6 +61,12 @@ typedef struct {
     int16_t rssi_dbm;
     int8_t snr_db;
     int64_t outdoor_updated_us;
+
+    /* The paired station's last valid GPS fix (WS1001 WEATHER_GPS_SIGNED
+     * packets), kept in muse_nvs so it survives restarts. */
+    bool gps_valid;
+    double gps_lat;
+    double gps_lon;
 } wg1200_weather_state_t;
 
 /**

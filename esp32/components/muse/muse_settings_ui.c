@@ -1575,11 +1575,40 @@ void muse_settings_ui_trigger_wg1200_weather_card(void)
     uint32_t r = esp_random();
     const char *style = k_styles[r % (sizeof(k_styles) / sizeof(k_styles[0]))];
 
-    char instruction[160];
-    snprintf(instruction, sizeof(instruction),
-             "Draw a 480x480 \"%s\" weather card via display.draw_file.",
-             style);
+    /* Where: the outdoor station's last GPS fix, else the build's fallback. */
+    wg1200_weather_state_t st;
+    wg1200_weather_get_state(&st);
+    char location[80];
+    if (st.gps_valid) {
+        snprintf(location, sizeof(location), "%.4f%c, %.4f%c (station GPS)",
+                 fabs(st.gps_lat), st.gps_lat < 0 ? 'S' : 'N',
+                 fabs(st.gps_lon), st.gps_lon < 0 ? 'W' : 'E');
+    } else {
+        snprintf(location, sizeof(location), "%s (no GPS fix)",
+                 CONFIG_MUSE_WG1200_FORECAST_LOCATION[0] ? CONFIG_MUSE_WG1200_FORECAST_LOCATION
+                                                         : "unknown");
+    }
+
+    /* The live readings pick which forecast to trust. Everything but the
+     * delivery is a default that what the user has told Muse overrides. */
+    const size_t cap = 1024;
+    char *instruction = malloc(cap);
+    if (!instruction) {
+        return;
+    }
+    snprintf(instruction, cap,
+             "Station location: %s. Draw my swipe-down forecast card. My saved card "
+             "preferences (forecast providers or models, time range, location, style, "
+             "layout or anything else I've told you) override these defaults; use a "
+             "default only where I haven't said otherwise. Defaults: treat these readings "
+             "as ground truth, fetch today's hourly forecast for this location from multiple "
+             "models/providers, score each against the current conditions, and draw a "
+             "480x480 HOURLY forecast card for today from the best-fitting models, with "
+             "exact values and the model sources noted on the card, in the \"%s\" style. "
+             "Always send the card via display.draw_file to this station.",
+             location, style);
     send_wg1200_prompt(instruction);
+    free(instruction);
 }
 
 static void on_wx_ask_drawcard(lv_event_t *e)

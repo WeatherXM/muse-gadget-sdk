@@ -11,6 +11,7 @@
 #include <time.h>
 
 #include "boards/board_wxm_wg1200.h"
+#include "wg1200_gps.h"
 #include "wxm_boot_mgr.h"
 
 #include "driver/gpio.h"
@@ -654,6 +655,17 @@ typedef struct {
     float cached;
 } daily_precip_nvs_blob_t;
 
+/* The station's last valid GPS fix. The station reports one only when asked,
+ * and asking takes WeatherXM's signed ack, so keep whatever arrives. */
+#define STATION_GPS_NVS_MAGIC                   0x57584750U /* 'WXGP' */
+
+typedef struct {
+    uint32_t magic;
+    uint32_t station_id;
+    double lat;
+    double lon;
+} station_gps_nvs_blob_t;
+
 /* Retain daily rain + rain rate across warm reboots / OTA / dual-boot switches */
 typedef struct {
     uint32_t magic;
@@ -841,6 +853,64 @@ static void save_daily_precip_muse_nvs(void)
     }
 }
 
+static void load_station_gps_muse_nvs(void)
+{
+    station_gps_nvs_blob_t blob = {0};
+    size_t sz = sizeof(blob);
+    nvs_handle_t h = 0;
+    if (nvs_open("wxm_weather", NVS_READONLY, &h) != ESP_OK) {
+        return;
+    }
+    if (nvs_get_blob(h, "wx_gps", &blob, &sz) == ESP_OK && sz == sizeof(blob) &&
+        blob.magic == STATION_GPS_NVS_MAGIC) {
+        s_state.gps_valid = true;
+        s_state.gps_lat = blob.lat;
+        s_state.gps_lon = blob.lon;
+        ESP_LOGI(TAG, "Station GPS from muse_nvs: %.4f, %.4f", blob.lat, blob.lon);
+    }
+    nvs_close(h);
+}
+
+/* Decodes the RMC sentence in a WEATHER_GPS_SIGNED packet: pl[25] is its
+ * length and it starts at pl[26], before the CRC and checksum. */
+static void handle_ws1001_gps(const uint8_t *pl, uint8_t bare_len, uint32_t station_id)
+{
+    uint8_t gnss_len = pl[25];
+    if (26U + gnss_len + 2U > bare_len) {
+        return;
+    }
+    double lat = 0.0, lon = 0.0;
+    if (!wg1200_gps_parse_rmc((const char *)&pl[26], gnss_len, &lat, &lon)) {
+        ESP_LOGI(TAG, "WS1001[0x%08lX] GPS packet without a valid fix", (unsigned long)station_id);
+        return;
+    }
+
+    xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+    /* Only write flash when the fix moves (~10 m): the station doesn't. */
+    bool moved = !s_state.gps_valid || fabs(lat - s_state.gps_lat) > 1e-4 ||
+                 fabs(lon - s_state.gps_lon) > 1e-4;
+    s_state.gps_valid = true;
+    s_state.gps_lat = lat;
+    s_state.gps_lon = lon;
+    xSemaphoreGive(s_state_mutex);
+    ESP_LOGI(TAG, "WS1001[0x%08lX] GPS fix: %.4f, %.4f", (unsigned long)station_id, lat, lon);
+
+    if (moved) {
+        station_gps_nvs_blob_t blob = {
+            .magic = STATION_GPS_NVS_MAGIC,
+            .station_id = station_id,
+            .lat = lat,
+            .lon = lon,
+        };
+        nvs_handle_t h = 0;
+        if (nvs_open("wxm_weather", NVS_READWRITE, &h) == ESP_OK) {
+            nvs_set_blob(h, "wx_gps", &blob, sizeof(blob));
+            nvs_commit(h);
+            nvs_close(h);
+        }
+    }
+}
+
 static void update_daily_precip_locked(float cml_val, uint32_t pkt_sta_id)
 {
     if (isnan(cml_val) || cml_val < 0.0f) {
@@ -1000,6 +1070,10 @@ static bool ws1001_try_decode(const uint8_t *pl, uint8_t len, int16_t rssi, int8
         ESP_LOGD(TAG, "Ignoring neighbor WS1001[0x%08lX] (RSSI=%ddBm)",
                  (unsigned long)station_id, rssi);
         return true;
+    }
+
+    if (pkt_type == 0x04) {
+        handle_ws1001_gps(pl, bare_len, station_id);
     }
 
     uint32_t pkt_count = ((uint32_t)pl[7] << 8) | pl[8];
@@ -1392,6 +1466,7 @@ esp_err_t wg1200_weather_init(void)
 
     load_initial_region();
     init_rain_tracking_state();
+    load_station_gps_muse_nvs();
 
     esp_err_t bmp_err = bmp390_init_hw();
     if (bmp_err == ESP_OK) {

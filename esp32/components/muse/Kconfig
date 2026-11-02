@@ -243,6 +243,18 @@ menu "Muse"
             memory and preview decoding shares CPU time with voice and Link.
             Leave disabled to build without camera support.
 
+    config MUSE_WG1200_FORECAST_LOCATION
+        string "Swipe-down forecast place when the station has no GPS fix"
+        depends on MUSE_BOARD_WXM_WG1200
+        default "Athens"
+        help
+            The swipe-down card asks Muse for today's hourly forecast at the
+            outdoor station's last GPS fix, scored against its live readings.
+            The station reports GPS only when WeatherXM's firmware asks for
+            it, so until a fix has arrived (and kept in muse_nvs) the request
+            names this place instead. Anything you've told Muse about where
+            the station is, or how you like the card, takes precedence.
+
     config MUSE_CJK_FONT
         bool "Show Chinese, Japanese and Korean in captions"
         depends on MUSE_ENABLED
