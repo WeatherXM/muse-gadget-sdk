@@ -33,6 +33,7 @@
 #include "config_store.h"
 #include "identity.h"
 #include "lan_fetch.h"
+#include "link_pairing.h"
 #include "noise_control.h"
 #include "sdk_token_console.h"
 #include "stack_monitor.h"
@@ -714,6 +715,13 @@ void muse_glue_led_state(led_state_t state) {
         case LED_STATE_ERROR:
             st = MUSE_LINK_ERROR;
             break;
+    }
+    // A VM session left from an earlier setup keeps reconnecting in the
+    // background, and its failures (ws_auth_failed) move the LED to offline or
+    // error. While a new pairing waits for its press, keep "Confirm pairing" on
+    // screen: confirming, its timeout and a BLE disconnect all clear the wait.
+    if (st != MUSE_LINK_CONFIRM && link_pairing_confirmation_required()) {
+        return;
     }
     muse_link_set_state(st);
     // Pairing, provisioning and unpair all move the LED; pick up their config.
