@@ -178,6 +178,17 @@ export class FlasherController {
   }
 
   /**
+   * Lets the gateway boot when the page moves on to BLE setup: disconnects and
+   * reboots it, unless a connect or flash is still using the session.
+   */
+  async releaseGateway(): Promise<void> {
+    const { stage } = this.state;
+    if (this.session && (stage === 'ready' || stage === 'error')) {
+      await this.disconnectDevice();
+    }
+  }
+
+  /**
    * Closes the USB session. The gateway waits in its bootloader while connected,
    * so reboot it into the slot otadata selects rather than leave it there.
    */

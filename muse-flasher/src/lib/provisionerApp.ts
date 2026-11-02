@@ -49,6 +49,8 @@ export interface ProvisionerHost {
   setSdkToken(token: string): void;
   /** Port picker options for USB serial commands (WG1200 filters or none). */
   serialRequestOptions(): SerialPortRequestOptions | undefined;
+  /** Opens the technical log panel. */
+  openLog(): void;
 }
 
 export interface ProvisionerApi {
@@ -418,9 +420,10 @@ export function initProvisioner(host: ProvisionerHost): ProvisionerApi {
     }
   }
 
-  el('ble-connect-btn')?.addEventListener('click', () =>
-    guarded('ble-connect-btn', () => ble.connect({ acceptAll: Boolean(el<HTMLInputElement>('ble-accept-all')?.checked) }), 'BLE connect'),
-  );
+  el('ble-connect-btn')?.addEventListener('click', () => {
+    host.openLog();
+    return guarded('ble-connect-btn', () => ble.connect({ acceptAll: Boolean(el<HTMLInputElement>('ble-accept-all')?.checked) }), 'BLE connect');
+  });
   el('ble-disconnect-btn')?.addEventListener('click', () => ble.disconnect());
   el('ble-refresh-btn')?.addEventListener('click', () => guarded('ble-refresh-btn', () => ble.refresh(), 'Refresh'));
 

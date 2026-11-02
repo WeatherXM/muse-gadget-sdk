@@ -59,6 +59,16 @@ export function initWg1200Studio(): void {
 
   controller.subscribeLogs(appendLog);
 
+  // The log starts closed; connecting opens it.
+  const openLog = () => {
+    const logDetails = el<HTMLDetailsElement>('technical-log-details');
+    if (logDetails) logDetails.open = true;
+  };
+  el<HTMLDetailsElement>('technical-log-details')?.addEventListener('toggle', (ev) => {
+    const pre = el<HTMLPreElement>('technical-log-output');
+    if ((ev.currentTarget as HTMLDetailsElement).open && pre) pre.scrollTop = pre.scrollHeight;
+  });
+
   // Workspace tab switching
   const switchWorkspaceTab = (tab: 'flasher' | 'provisioner') => {
     const flasherSection = el('workspace-flasher');
@@ -70,6 +80,16 @@ export function initWg1200Studio(): void {
     flasherSection?.classList.toggle('hidden', !isFlasher);
     el('workspace-flasher-safety')?.classList.toggle('hidden', !isFlasher);
     provisionerSection?.classList.toggle('hidden', isFlasher);
+
+    // One log for both steps: above the slot cards in step 1, below BLE setup in step 2.
+    const logPanel = el('technical-log-panel');
+    if (logPanel) {
+      if (isFlasher) el('firmware-cards')?.before(logPanel);
+      else provisionerSection?.append(logPanel);
+    }
+
+    // BLE setup needs the gateway running, not held in its bootloader by USB.
+    if (!isFlasher) void controller.releaseGateway();
 
     if (btnFlasher && btnProvisioner) {
       btnFlasher.setAttribute('aria-selected', String(isFlasher));
@@ -406,8 +426,7 @@ export function initWg1200Studio(): void {
       state.stage === 'flashing' || state.stage === 'verifying' || state.stage === 'rebooting';
     el('firmware-cards')?.classList.toggle('hidden', operating);
     if (operating && !wasOperating) {
-      const logDetails = el<HTMLDetailsElement>('technical-log-details');
-      if (logDetails) logDetails.open = true;
+      openLog();
       progressPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     wasOperating = operating;
@@ -465,8 +484,10 @@ export function initWg1200Studio(): void {
   wxmSelect?.addEventListener('change', () => renderFlasherState(controller.currentState));
 
   // Connect / Disconnect buttons
-  const connectUsb = () =>
+  const connectUsb = () => {
+    openLog();
     void controller.connectDevice({ showAllPorts: Boolean(showAllPortsInput?.checked) });
+  };
   el('connect-usb-btn')?.addEventListener('click', connectUsb);
   el('post-flash-reconnect-usb-btn')?.addEventListener('click', connectUsb);
   el('disconnect-usb-btn')?.addEventListener('click', () => {
@@ -583,6 +604,7 @@ export function initWg1200Studio(): void {
     setSdkToken: (token) => syncSdkTokenInputs(token, 'init'),
     serialRequestOptions: () =>
       showAllPortsInput?.checked ? undefined : { filters: [...WG1200_USB_FILTERS] },
+    openLog,
   });
   renderFlasherState(controller.currentState);
 

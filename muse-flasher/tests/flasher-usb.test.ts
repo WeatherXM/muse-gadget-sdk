@@ -187,4 +187,18 @@ describe('disconnecting', () => {
     expect(logs.join('\n')).toMatch(/download mode[\s\S]*Unplug it and plug it back in/);
     expect(controller.currentState.stage).toBe('disconnected');
   });
+
+  it('releases the gateway for BLE setup, but never in the middle of a flash', async () => {
+    const boot = 'I (548) boot: Loaded app from partition at offset 0x820000\n';
+    const flashing = await connectedController(boot);
+    (flashing.controller as any).state.stage = 'flashing';
+    await flashing.controller.releaseGateway();
+    expect(flashing.calls).toEqual([]);
+    expect(flashing.controller.holdsGatewayInBootloader).toBe(true);
+
+    const idle = await connectedController(boot);
+    await idle.controller.releaseGateway();
+    expect(idle.calls).toEqual(['reboot']);
+    expect(idle.controller.currentState.stage).toBe('disconnected');
+  });
 });

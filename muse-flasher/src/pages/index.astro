@@ -27,6 +27,8 @@ import Footer from '../components/Footer.astro';
       <DeviceStatus />
       <FlashProgress />
       <PostFlashInstructions />
+      <!-- Shared log: studioApp moves it into whichever workspace is open -->
+      <TechnicalLog />
       <FirmwareCards />
     </div>
 
@@ -39,9 +41,6 @@ import Footer from '../components/Footer.astro';
     >
       <MuseBleProvisioner />
     </div>
-
-    <!-- Shared Live Technical Log -->
-    <TechnicalLog />
 
     <!-- Flasher tab only: how the write guard and dual-boot layout work -->
     <div id="workspace-flasher-safety">
