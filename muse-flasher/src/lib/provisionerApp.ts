@@ -9,6 +9,15 @@ import {
   type BleStatus,
   type ServiceState,
 } from './muse/bleClient';
+import {
+  CARD_PROMPT_MAX,
+  DEFAULT_CARD_PROMPT,
+  cardPromptCommands,
+  checkCardPrompt,
+  normalizeCardPrompt,
+  readCardPromptOverUsb,
+  writeCardPromptOverUsb,
+} from './muse/cardPrompt';
 import { runCryptoSelfTest } from './muse/homeLinkCrypto';
 import {
   checkProxyHealth,
@@ -496,6 +505,126 @@ export function initProvisioner(host: ProvisionerHost): ProvisionerApi {
   });
 
   for (let i = 1; i <= PROVISION_STEPS.length; i++) el(`prov-step-${i}`)?.setAttribute('data-state', '');
+
+  // ---------------------------------------------------------------------------
+  // Swipe-down card prompt (stored on the gateway, set over USB or BLE)
+  // ---------------------------------------------------------------------------
+  const CARD_PROMPT_KEY = 'muse_setup_cardPrompt';
+  const promptText = el<HTMLTextAreaElement>('card-prompt-text');
+  const promptStatus = el('card-prompt-status');
+  const showPromptStatus = (text: string, kind: 'ok' | 'error' | '' = '') => {
+    if (!promptStatus) return;
+    promptStatus.textContent = text;
+    promptStatus.className = `mt-2 font-mono text-[11px] empty:hidden ${
+      kind === 'ok' ? 'text-state-success' : kind === 'error' ? 'text-state-danger' : 'text-ink-muted'
+    }`;
+  };
+  const renderPromptCheck = () => {
+    const text = normalizeCardPrompt(promptText?.value ?? '');
+    const check = checkCardPrompt(text);
+    const count = el('card-prompt-count');
+    if (count) {
+      count.textContent = `${new TextEncoder().encode(text).length} / ${CARD_PROMPT_MAX}`;
+      count.classList.toggle('text-state-danger', !check.ok);
+    }
+    const note = el('card-prompt-check');
+    if (note) {
+      note.textContent = check.error ?? (check.missing.length ? `Leaves out ${check.missing.join(', ')}.` : '');
+      note.className = `mt-1 font-mono text-[11px] empty:hidden ${check.ok ? 'text-state-warning' : 'text-state-danger'}`;
+    }
+    try {
+      localStorage.setItem(CARD_PROMPT_KEY, promptText?.value ?? '');
+    } catch {
+      // unsaved in private windows
+    }
+  };
+  let savedPrompt: string | null = null;
+  try {
+    savedPrompt = localStorage.getItem(CARD_PROMPT_KEY);
+  } catch {
+    // ignore
+  }
+  if (promptText) promptText.value = savedPrompt || DEFAULT_CARD_PROMPT;
+  renderPromptCheck();
+  promptText?.addEventListener('input', renderPromptCheck);
+
+  const promptVia = () =>
+    (document.querySelector<HTMLInputElement>('input[name="card-prompt-via"]:checked')?.value ?? 'usb') as 'usb' | 'ble';
+
+  // Sends `text` (empty: the built-in default) over the chosen link.
+  const storePrompt = async (text: string) => {
+    if (promptVia() === 'ble') {
+      if (!ble.hasCompanion) {
+        throw new Error('Connect over Bluetooth first (step 2), or send via USB.');
+      }
+      await ble.writeCardPrompt(cardPromptCommands(text));
+      showPromptStatus(
+        text ? `Sent ${text.length} chars over Bluetooth; the gateway answers in the log.` : 'Sent the reset over Bluetooth.',
+        'ok',
+      );
+    } else {
+      showPromptStatus('Sending over USB Serial…');
+      const stored = await writeCardPromptOverUsb(text, {
+        requestOptions: host.serialRequestOptions(),
+        onLog: (msg) => log('info', msg),
+      });
+      showPromptStatus(
+        stored.custom ? `Saved on the gateway (${stored.len} chars). The next swipe uses it.` : 'The gateway uses the built-in prompt again.',
+        'ok',
+      );
+    }
+    log('ok', text ? `Swipe-down card prompt saved (${text.length} chars).` : 'Swipe-down card prompt reset to built-in.');
+  };
+
+  el('card-prompt-save-btn')?.addEventListener('click', () =>
+    guarded('card-prompt-save-btn', async () => {
+      const text = normalizeCardPrompt(promptText?.value ?? '');
+      const check = checkCardPrompt(text);
+      if (!check.ok) {
+        showPromptStatus(check.error ?? 'Invalid prompt.', 'error');
+        throw new Error(check.error);
+      }
+      // The built-in text is stored as "no custom prompt", so firmware updates
+      // to the default still apply.
+      await storePrompt(text === DEFAULT_CARD_PROMPT ? '' : text).catch((err: Error) => {
+        showPromptStatus(err.message, 'error');
+        throw err;
+      });
+    }, 'Save card prompt'),
+  );
+
+  el('card-prompt-reset-btn')?.addEventListener('click', () =>
+    guarded('card-prompt-reset-btn', async () => {
+      await storePrompt('').catch((err: Error) => {
+        showPromptStatus(err.message, 'error');
+        throw err;
+      });
+      if (promptText) promptText.value = DEFAULT_CARD_PROMPT;
+      renderPromptCheck();
+    }, 'Reset card prompt'),
+  );
+
+  el('card-prompt-read-btn')?.addEventListener('click', () =>
+    guarded('card-prompt-read-btn', async () => {
+      showPromptStatus('Reading over USB Serial…');
+      const stored = await readCardPromptOverUsb({
+        requestOptions: host.serialRequestOptions(),
+        onLog: (msg) => log('info', msg),
+      }).catch((err: Error) => {
+        showPromptStatus(err.message, 'error');
+        throw err;
+      });
+      if (promptText) promptText.value = stored.text;
+      renderPromptCheck();
+      showPromptStatus(`Loaded the gateway's ${stored.custom ? 'custom' : 'built-in'} prompt (${stored.len} chars).`, 'ok');
+    }, 'Read card prompt'),
+  );
+
+  el('card-prompt-default-btn')?.addEventListener('click', () => {
+    if (promptText) promptText.value = DEFAULT_CARD_PROMPT;
+    renderPromptCheck();
+    showPromptStatus('Built-in text restored in the editor; save to send it.');
+  });
 
   return {
     setNodeIdFromUsb(nodeId: string) {

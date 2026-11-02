@@ -93,14 +93,22 @@ export interface SerialCommandOptions {
   retryMs?: number;
 }
 
+/** How a console command line reads in the log: tokens redacted, long values shortened. */
+function describeCommandLine(line: string): string {
+  return line
+    .replace(/(>sdk_token=mgst_[A-Za-z0-9_-]{7}).*/, '$1...')
+    .replace(/^(>card\.prompt\+?=)(.*)$/, (_, cmd: string, v: string) => `${cmd}(${v.length} chars)`);
+}
+
 /**
- * Sends a console command over Web Serial until a line matches `answerPattern`
- * (as web-flasher/sdk-token.js does): opening the port can restart the gadget,
- * so a single write is easily lost while it boots. Returns the first match, or
- * null on timeout. The command is logged with any token redacted.
+ * Sends console command lines over Web Serial until a line matches
+ * `answerPattern` (as web-flasher/sdk-token.js does): opening the port can
+ * restart the gadget, so a single write is easily lost while it boots. Several
+ * lines go out in order each round. Returns the first match, or null on
+ * timeout. Commands are logged with any token redacted.
  */
 export async function sendSerialConsoleCommand(
-  commandLine: string,
+  commandLines: string | string[],
   answerPattern: RegExp,
   options: SerialCommandOptions = {},
 ): Promise<{ match: RegExpMatchArray | null; lines: string[] }> {
@@ -142,17 +150,21 @@ export async function sendSerialConsoleCommand(
     }
   })().catch(() => {});
 
-  const redacted = commandLine.replace(/(>sdk_token=mgst_[A-Za-z0-9_-]{7}).*/, '$1...');
+  const commands = Array.isArray(commandLines) ? commandLines : [commandLines];
   try {
     const deadline = Date.now() + timeoutMs;
     await sleep(800); // a gadget restarted by the port opening boots first
     while (!match && Date.now() < deadline) {
-      onLog?.(`Sending ${redacted} over USB Serial...`);
-      const writer = port.writable!.getWriter();
-      try {
-        await writer.write(new TextEncoder().encode(`\n${commandLine}\n`));
-      } finally {
-        writer.releaseLock();
+      for (const [i, line] of commands.entries()) {
+        onLog?.(`Sending ${describeCommandLine(line)} over USB Serial...`);
+        const writer = port.writable!.getWriter();
+        try {
+          await writer.write(new TextEncoder().encode(`\n${line}\n`));
+        } finally {
+          writer.releaseLock();
+        }
+        // Let the console finish one (an NVS write) before the next.
+        if (i + 1 < commands.length) await sleep(150);
       }
       const wait = Date.now() + retryMs;
       while (!match && Date.now() < wait) await sleep(100);

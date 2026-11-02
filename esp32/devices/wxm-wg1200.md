@@ -142,6 +142,16 @@ printf '>sdk_token=mgst_...\n' > /dev/cu.usbserial-1110
 - `CONFIG_MUSE_WG1200_FORECAST_LOCATION` (default `"Athens"`): where the swipe-down forecast card is for until the outdoor station's GPS fix arrives. Muse decodes the station's `WEATHER_GPS_SIGNED` packets and keeps the last fix in `muse_nvs`; the station sends one only when WeatherXM's firmware asks (a signed ack Muse can't make), so on a fresh install the fallback is used. Preferences you've told Muse (location, providers, time range, style) override both.
 - `CONFIG_GADGET_SDK_TOKEN`: keep it `""`. A token set here is compiled into the image, and the flashers serve their images publicly; they send each user's own token over USB instead. `wg1200_dualboot.sh build` and the muse-flasher manifest script both refuse an image with a token in it.
 
+**Swipe-down card prompt.** The request the swipe sends is a template stored in `muse_nvs`, changeable without reflashing from the USB console or the Companion BLE service ([`wg1200_card_prompt.h`](../components/muse/wg1200_card_prompt.h)):
+
+| Command | Effect |
+|---|---|
+| `card.prompt=TEXT` | Replace the template (empty: back to the built-in one) |
+| `card.prompt+=TEXT` | Append a chunk; BLE writes carry ~400 bytes, so longer templates arrive in pieces (max 1023 bytes) |
+| `card.prompt?` | Print the template on the console as `@card.prompt {"custom":…,"len":…,"text":"…"}` |
+
+On USB prefix each with `>`. At swipe time `{weather}` becomes the live readings, `{location}` the station's GPS fix (or `CONFIG_MUSE_WG1200_FORECAST_LOCATION`) and `{style}` a random card style. The Web Flasher & Provisioner's setup tab has an editor that does all of this.
+
 ---
 
 ## Provisioning a Permanent 365-Day Device Token (`provision_v2` + `muse_ble`)

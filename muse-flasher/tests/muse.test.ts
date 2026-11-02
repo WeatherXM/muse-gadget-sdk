@@ -16,6 +16,12 @@ import {
   sha256,
 } from '../src/lib/muse/homeLinkCrypto';
 import { normalizeMuseHost } from '../src/lib/muse/museCloudClient';
+import {
+  DEFAULT_CARD_PROMPT,
+  cardPromptCommands,
+  checkCardPrompt,
+  normalizeCardPrompt,
+} from '../src/lib/muse/cardPrompt';
 import { validateSdkToken } from '../src/lib/muse/sdkToken';
 import worker, { type Env } from '../src/worker/index';
 
@@ -210,5 +216,44 @@ describe('Cloudflare Worker /api (matches muse_setup_server.py)', () => {
 
   it('returns 404 for unknown endpoints', async () => {
     expect((await call('https://flash.example.com/api/nope')).status).toBe(404);
+  });
+});
+
+describe('swipe-down card prompt', () => {
+  it('ships the same default as the firmware (wg1200_card_prompt.h)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const header = fs.readFileSync(
+      path.resolve(__dirname, '../../esp32/components/muse/wg1200_card_prompt.h'),
+      'utf8',
+    );
+    const macro = header.split('#define WG1200_CARD_PROMPT_DEFAULT')[1].split('\n\n')[0];
+    const cDefault = [...macro.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1].replace(/\\"/g, '"')).join('');
+    expect(DEFAULT_CARD_PROMPT).toBe(cDefault);
+  });
+
+  it('chunks long prompts into card.prompt= and card.prompt+= by UTF-8 bytes', () => {
+    expect(cardPromptCommands('')).toEqual(['card.prompt=']);
+    const ascii = cardPromptCommands('a'.repeat(1000));
+    expect(ascii.map((c) => c.split('=')[0])).toEqual(['card.prompt', 'card.prompt+', 'card.prompt+']);
+    expect(ascii.map((c) => c.slice(c.indexOf('=') + 1).length)).toEqual([400, 400, 200]);
+    // Greek letters are 2 bytes each: 200 per chunk, never split.
+    const greek = cardPromptCommands('Καιρός '.repeat(60));
+    for (const c of greek) {
+      expect(new TextEncoder().encode(c.slice(c.indexOf('=') + 1)).length).toBeLessThanOrEqual(400);
+    }
+    expect(greek.map((c) => c.slice(c.indexOf('=') + 1)).join('')).toBe('Καιρός '.repeat(60));
+  });
+
+  it('checks length in bytes and flags missing placeholders', () => {
+    expect(checkCardPrompt(DEFAULT_CARD_PROMPT)).toEqual({ ok: true, missing: [] });
+    expect(checkCardPrompt('Draw a card for {location}.').missing).toEqual(['{weather}', '{style}']);
+    expect(checkCardPrompt('x'.repeat(1024)).ok).toBe(false);
+    expect(normalizeCardPrompt('  line one\n  line two \r\nthree ')).toBe('line one line two three');
+  });
+
+  it('shortens card prompt values in the BLE log', () => {
+    expect(redactCompanionCommand('card.prompt=hello world')).toBe('card.prompt=(11 chars)');
+    expect(redactCompanionCommand('card.prompt+=abc')).toBe('card.prompt+=(3 chars)');
   });
 });

@@ -49,6 +49,7 @@
 #include <math.h>
 #include "esp_random.h"
 #include "boards/board_wxm_wg1200.h"
+#include "wg1200_card_prompt.h"
 #include "wg1200_weather.h"
 #include "wxm_boot_mgr.h"
 #endif
@@ -1526,6 +1527,15 @@ static void format_wg1200_telemetry(char *buf, size_t cap)
     }
 }
 
+/* Sends `prompt` (malloc'd; the turn frees it) from the Muse face. */
+static void send_wg1200_text(char *prompt)
+{
+    wg1200_buzzer_beep(30);
+    show(s_home);
+    muse_ui_show_face();
+    muse_hatch_ui_text_turn(prompt);
+}
+
 static void send_wg1200_prompt(const char *instruction)
 {
     char telemetry[256];
@@ -1536,10 +1546,7 @@ static void send_wg1200_prompt(const char *instruction)
         return;
     }
     snprintf(prompt, len, "Weather: %s %s", telemetry, instruction);
-    wg1200_buzzer_beep(30);
-    show(s_home);
-    muse_ui_show_face();
-    muse_hatch_ui_text_turn(prompt);
+    send_wg1200_text(prompt);
 }
 
 static void on_wx_ask_brief(lv_event_t *e)
@@ -1589,26 +1596,26 @@ void muse_settings_ui_trigger_wg1200_weather_card(void)
                                                          : "unknown");
     }
 
-    /* The live readings pick which forecast to trust. Everything but the
-     * delivery is a default that what the user has told Muse overrides. */
-    const size_t cap = 1024;
-    char *instruction = malloc(cap);
-    if (!instruction) {
+    char telemetry[256];
+    format_wg1200_telemetry(telemetry, sizeof(telemetry));
+
+    /* The template set over USB or BLE (card.prompt=…), else the built-in
+     * one: the live readings pick which forecast to trust, and what the user
+     * has told Muse overrides every default but the delivery. */
+    char *tpl = malloc(WG1200_CARD_PROMPT_MAX + 1);
+    if (!tpl) {
         return;
     }
-    snprintf(instruction, cap,
-             "Station location: %s. Draw my swipe-down forecast card. My saved card "
-             "preferences (forecast providers or models, time range, location, style, "
-             "layout or anything else I've told you) override these defaults; use a "
-             "default only where I haven't said otherwise. Defaults: treat these readings "
-             "as ground truth, fetch today's hourly forecast for this location from multiple "
-             "models/providers, score each against the current conditions, and draw a "
-             "480x480 HOURLY forecast card for today from the best-fitting models, with "
-             "exact values and the model sources noted on the card, in the \"%s\" style. "
-             "Always send the card via display.draw_file to this station.",
-             location, style);
-    send_wg1200_prompt(instruction);
-    free(instruction);
+    wg1200_card_prompt_get(tpl, WG1200_CARD_PROMPT_MAX + 1);
+    /* A 1023-char template with each placeholder several times; past that,
+     * expansion truncates. */
+    const size_t cap = 4096;
+    char *prompt = malloc(cap);
+    if (prompt) {
+        wg1200_card_prompt_expand(tpl, telemetry, location, style, prompt, cap);
+        send_wg1200_text(prompt);
+    }
+    free(tpl);
 }
 
 static void on_wx_ask_drawcard(lv_event_t *e)

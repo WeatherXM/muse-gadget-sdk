@@ -139,7 +139,9 @@ export function museNameForNodeId(nodeId: string): string | null {
 
 /** Hides Wi-Fi passwords and tokens in logged Companion commands. */
 export function redactCompanionCommand(cmd: string): string {
-  return cmd.replace(/^((?:wifi\.pass|hatch\.token\+?)=).*$/, '$1***');
+  return cmd
+    .replace(/^((?:wifi\.pass|hatch\.token\+?)=).*$/, '$1***')
+    .replace(/^(card\.prompt\+?=)(.*)$/, (_, key: string, v: string) => `${key}(${v.length} chars)`);
 }
 
 export class MuseBleProvisionerClient {
@@ -488,6 +490,13 @@ export class MuseBleProvisionerClient {
     }
     await this.readCompanionStatus();
     this.cb.onLog('ok', 'Companion (muse_ble) settings written to NVS.');
+  }
+
+  /** Stores the swipe-down card prompt (empty: the built-in default) over Companion. */
+  async writeCardPrompt(commands: string[]): Promise<void> {
+    for (const cmd of commands) {
+      await this.sendCompanionCmd(cmd);
+    }
   }
 
   async hatchTest(): Promise<void> {

@@ -130,6 +130,7 @@ if(CONFIG_MUSE_ENABLED)
         list(APPEND srcs
             "boards/board_wxm_wg1200.c"
             "wxm_boot_mgr.c"
+            "wg1200_card_prompt.c"
             "wg1200_weather.c")
     elseif(CONFIG_MUSE_BOARD_WAVESHARE_P4_LCD35)
         list(APPEND srcs "boards/board_waveshare_p4_lcd35.c")
