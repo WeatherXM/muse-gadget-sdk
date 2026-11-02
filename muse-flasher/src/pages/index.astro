@@ -1,0 +1,60 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import Header from '../components/Header.astro';
+import BrowserNotice from '../components/BrowserNotice.astro';
+import ConnectPanel from '../components/ConnectPanel.astro';
+import DeviceStatus from '../components/DeviceStatus.astro';
+import FirmwareCards from '../components/FirmwareCards.astro';
+import FlashProgress from '../components/FlashProgress.astro';
+import PostFlashInstructions from '../components/PostFlashInstructions.astro';
+import MuseBleProvisioner from '../components/MuseBleProvisioner.astro';
+import SafetyProtections from '../components/SafetyProtections.astro';
+import TechnicalLog from '../components/TechnicalLog.astro';
+import ConfirmationModal from '../components/ConfirmationModal.astro';
+import AdvancedTools from '../components/AdvancedTools.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<SiteLayout>
+  <Header activeModel="wg1200" />
+
+  <main class="mx-auto w-full max-w-6xl flex-1 px-4 sm:px-6 py-6 space-y-6">
+    <BrowserNotice />
+
+    <!-- Workspace 1: USB Dual-Boot Flasher & Instant Slot Switcher -->
+    <div id="workspace-flasher" role="tabpanel" aria-labelledby="tab-btn-flasher" class="space-y-6">
+      <ConnectPanel />
+      <DeviceStatus />
+      <FlashProgress />
+      <PostFlashInstructions />
+      <FirmwareCards />
+    </div>
+
+    <!-- Workspace 2: Post-Flash SDK Token & BLE Provisioner -->
+    <div
+      id="workspace-provisioner"
+      role="tabpanel"
+      aria-labelledby="tab-btn-provisioner"
+      class="hidden space-y-6"
+    >
+      <MuseBleProvisioner />
+    </div>
+
+    <!-- Shared Live Technical Log -->
+    <TechnicalLog />
+
+    <!-- Flasher tab only: how the write guard and dual-boot layout work -->
+    <div id="workspace-flasher-safety">
+      <SafetyProtections />
+    </div>
+  </main>
+
+  <ConfirmationModal />
+  <AdvancedTools />
+  <Footer />
+
+  <script>
+    import { initWg1200Studio } from '../lib/studioApp';
+    initWg1200Studio();
+  </script>
+</SiteLayout>

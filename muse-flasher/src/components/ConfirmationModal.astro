@@ -1,0 +1,67 @@
+<dialog id="confirm-flash-dialog" closedby="any" aria-labelledby="confirm-dialog-title">
+  <div class="p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div
+          id="confirm-dialog-badge"
+          class="inline-flex items-center gap-1.5 rounded-pill border border-muse-border bg-muse-subtle px-2.5 py-0.5 font-mono text-[11px] font-semibold text-muse"
+        >
+          Confirm Slot Operation
+        </div>
+        <h2 id="confirm-dialog-title" class="mt-2 font-display text-lg font-bold text-ink">
+          Install / Switch Firmware
+        </h2>
+      </div>
+      <form method="dialog">
+        <button
+          type="submit"
+          class="rounded-lg border border-line bg-canvas-subtle p-1.5 text-ink-muted hover:text-ink"
+          aria-label="Close confirmation dialog"
+        >
+          ✕
+        </button>
+      </form>
+    </div>
+
+    <p id="confirm-dialog-desc" class="mt-3 text-xs text-ink-secondary leading-relaxed">
+      Please review the target slot and safety guarantees before proceeding.
+    </p>
+
+    <div class="mt-4 rounded-xl border border-line bg-canvas-subtle p-3.5 space-y-2 font-mono text-xs">
+      <div class="flex justify-between">
+        <span class="text-ink-muted">Target Firmware:</span>
+        <span id="confirm-target-name" class="font-semibold text-ink">—</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-ink-muted">Target Slot:</span>
+        <span id="confirm-target-slot" class="font-semibold text-muse">—</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-ink-muted">Operation Mode:</span>
+        <span id="confirm-target-mode" class="font-semibold text-ink">—</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-ink-muted">Protected Regions:</span>
+        <span class="text-state-success">factory, nvs, nvs_key, spiffs untouched</span>
+      </div>
+    </div>
+
+    <div class="mt-6 flex items-center justify-end gap-3">
+      <form method="dialog">
+        <button
+          type="submit"
+          class="rounded-xl border border-line bg-surface-raised hover:bg-surface-hover px-4 py-2 text-xs font-medium text-ink-secondary hover:text-ink transition-colors"
+        >
+          Cancel
+        </button>
+      </form>
+      <button
+        type="button"
+        id="confirm-dialog-proceed-btn"
+        class="rounded-xl bg-muse hover:bg-muse-hover px-5 py-2 text-xs font-semibold text-canvas shadow-glow-muse transition-all"
+      >
+        Proceed
+      </button>
+    </div>
+  </div>
+</dialog>

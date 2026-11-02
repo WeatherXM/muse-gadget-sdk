@@ -1,0 +1,83 @@
+---
+interface Props {
+  activeModel?: 'wg1200';
+}
+---
+
+<header class="sticky top-0 z-30 border-b border-line bg-canvas/85 backdrop-blur-md">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3.5">
+      <a href="/" class="flex items-center gap-3.5 group focus:outline-none">
+        <div class="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-1.5 shadow-sm">
+          <img
+            src="/brand/logo-dark-horizontal.svg"
+            alt="WeatherXM"
+            class="h-6 w-auto object-contain transition-opacity group-hover:opacity-90"
+          />
+          <span class="text-xs font-mono text-ink-muted">×</span>
+          <span class="font-display text-sm font-bold tracking-tight text-muse">MUSE</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-display text-base font-semibold tracking-tight text-ink">
+              WG1200 Studio
+            </span>
+            <span class="rounded-pill border border-muse-border bg-muse-subtle px-2 py-0.5 font-mono text-[11px] font-medium text-muse">
+              Dual-Boot + BLE Setup
+            </span>
+          </div>
+          <p class="text-xs text-ink-secondary hidden sm:block">
+            Non-Destructive Firmware Switcher (`ota_0` ↔ `ota_1`) &amp; Post-Flash Provisioner
+          </p>
+        </div>
+      </a>
+    </div>
+
+    <!-- Primary Workspace Mode Tabs -->
+    <div class="flex items-center gap-2">
+      <div
+        role="tablist"
+        aria-label="WG1200 Studio Workspace"
+        class="inline-flex rounded-xl border border-line bg-canvas-subtle p-1"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="tab-btn-flasher"
+          aria-selected="true"
+          aria-controls="workspace-flasher"
+          data-workspace-tab="flasher"
+          class="workspace-tab-btn rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all bg-surface-raised text-ink shadow-sm border border-line-strong"
+        >
+          <span class="inline-flex items-center gap-1.5">
+            <span class="h-2 w-2 rounded-full bg-wxm"></span>
+            1. USB Flasher &amp; Slot Switcher
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-btn-provisioner"
+          aria-selected="false"
+          aria-controls="workspace-provisioner"
+          data-workspace-tab="provisioner"
+          class="workspace-tab-btn rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all text-ink-secondary hover:text-ink border border-transparent"
+        >
+          <span class="inline-flex items-center gap-1.5">
+            <span class="h-2 w-2 rounded-full bg-muse"></span>
+            2. Token &amp; BLE Setup (Post-Flash)
+          </span>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        id="open-advanced-tools-btn"
+        class="rounded-xl border border-line bg-surface hover:bg-surface-hover px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink transition-colors"
+        title="Factory recovery & diagnostic backup tools"
+      >
+        Tools
+      </button>
+    </div>
+  </div>
+</header>

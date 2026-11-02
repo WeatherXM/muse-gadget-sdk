@@ -1,0 +1,47 @@
+name: Deploy Muse WG1200 Flasher to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "muse-flasher/**"
+      - ".github/workflows/muse-flasher-cloudflare.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy Cloudflare Worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: muse-flasher
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: muse-flasher/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify firmware manifest & run unit tests
+        run: |
+          npm run manifest:update
+          npm test
+
+      - name: Build Astro static assets & Worker bundle
+        run: npm run build
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: muse-flasher
+          command: deploy

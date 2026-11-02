@@ -1,0 +1,122 @@
+@import './tokens.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: var(--bg-canvas);
+    background-image:
+      radial-gradient(circle at 12% 0%, rgba(16, 185, 129, 0.08), transparent 36%),
+      radial-gradient(circle at 88% 4%, rgba(10, 132, 255, 0.08), transparent 38%),
+      linear-gradient(to bottom, rgba(13, 18, 27, 0.6), rgba(8, 11, 17, 1));
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background-color: rgba(16, 185, 129, 0.28);
+    color: #ffffff;
+  }
+
+  /* Native <dialog> modal & scroll containment */
+  dialog:modal {
+    overscroll-behavior: contain;
+    max-width: min(92vw, 34rem);
+    max-height: 88vh;
+    margin: auto;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+  }
+
+  dialog::backdrop {
+    background-color: rgba(4, 6, 10, 0.76);
+    backdrop-filter: blur(6px);
+    overscroll-behavior: contain;
+  }
+
+  /* Validate input only after user interaction using :user-invalid / :user-valid */
+  input:user-invalid,
+  select:user-invalid,
+  textarea:user-invalid {
+    border-color: var(--state-danger) !important;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.28);
+  }
+
+  input:user-valid:not(:placeholder-shown) {
+    border-color: rgba(16, 185, 129, 0.45);
+  }
+}
+
+@layer components {
+  .instrument-panel {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .grid-backdrop {
+    background-size: 32px 32px;
+    background-image:
+      linear-gradient(to right, rgba(148, 163, 184, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
+  }
+
+  .mono-readout {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Pairing confirmation banner: pulses until the device confirms. */
+  .confirm-pulse {
+    animation: confirm-pulse 1.2s infinite alternate;
+  }
+
+  @keyframes confirm-pulse {
+    from { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35); }
+    to { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .confirm-pulse { animation: none; }
+  }
+
+  /* Provisioning step pills, driven by data-state. */
+  .prov-step[data-state='active'] {
+    border-color: var(--accent-muse);
+    background-color: var(--accent-muse-subtle);
+    color: var(--text-primary);
+  }
+
+  .prov-step[data-state='done'] {
+    border-color: var(--state-success-border);
+    background-color: var(--state-success-bg);
+    color: var(--state-success);
+  }
+
+  .prov-step[data-state='error'] {
+    border-color: var(--state-danger-border);
+    background-color: var(--state-danger-bg);
+    color: var(--state-danger);
+  }
+
+  /* Technical log line colours. */
+  .log-ok { color: var(--state-success); }
+  .log-warn { color: var(--state-warning); }
+  .log-error { color: var(--state-danger); }
+  .log-ble { color: #78b6ff; }
+}

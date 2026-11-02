@@ -1,0 +1,365 @@
+---
+import { PROVISION_STEPS } from '../lib/muse/bleClient';
+
+// Run in the user's logged-in https://muse.ai tab: copies the web access_token
+// that /api/mint exchanges for the device's 365-day token pair.
+const DEVTOOLS_SNIPPET = `(async () => {
+  const cp = typeof copy === "function" ? copy : null;
+  const r = await fetch("/api/auth/check", { method: "POST", credentials: "include" });
+  const d = await r.json().catch(() => ({}));
+  const t = d.access_token;
+  if (!t) return console.error("No access_token: are you logged in to muse.ai?", r.status, d);
+  if (cp) { cp(t); console.log("%cWeb access_token copied to clipboard", "color:#3c3"); }
+  return t;
+})()`;
+
+const input =
+  'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted focus:border-muse focus:outline-none';
+const label = 'block text-xs font-medium text-ink-secondary';
+const hint = 'mt-1 block text-[11px] leading-relaxed text-ink-muted';
+const primaryBtn =
+  'inline-flex items-center gap-2 rounded-xl bg-muse hover:bg-muse-hover px-4 py-2.5 text-xs font-semibold text-canvas shadow-glow-muse transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none';
+const secondaryBtn =
+  'rounded-xl border border-line bg-surface hover:bg-surface-hover px-3.5 py-2.5 text-xs font-medium text-ink-secondary hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+const smallBtn =
+  'shrink-0 rounded-lg border border-line bg-surface hover:bg-surface-hover px-2.5 py-2 font-mono text-[11px] text-ink-secondary hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+const badge = 'rounded-pill border border-line bg-canvas-subtle px-2.5 py-1 font-mono text-[11px] text-ink-muted';
+const rowLabel = 'w-40 py-1.5 pr-3 text-left align-top font-normal text-ink-muted whitespace-nowrap';
+const rowValue = 'py-1.5 text-ink break-all';
+---
+
+<div class="space-y-6">
+  <!-- 1. Web Bluetooth connection & live status -->
+  <section class="instrument-panel p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4 pb-5 border-b border-line">
+      <div class="max-w-2xl">
+        <div class="inline-flex items-center gap-2 rounded-pill border border-muse-border bg-muse-subtle px-2.5 py-0.5 font-mono text-[11px] font-medium text-muse">
+          Step 2 · Web Bluetooth (Home Link + Companion)
+        </div>
+        <h2 class="mt-2 font-display text-xl font-bold text-ink">Muse BLE Provisioner</h2>
+        <p class="mt-1 text-xs text-ink-secondary">
+          Connects to <code class="font-mono text-ink">MuseGadget-XXXXXX</code>, pairs Home Link (<code class="font-mono text-ink">provision_v2</code>, v5 P-256 ECDH + AES-256-GCM)
+          and writes Wi-Fi, your Muse VM and a 365-day device token pair.
+        </p>
+        <p class="mt-3 inline-flex items-center gap-2 rounded-lg border border-muse-border bg-muse-subtle px-3 py-2 text-xs text-ink">
+          <span class="h-2 w-2 rounded-full bg-muse shrink-0"></span>
+          <span>
+            <strong class="font-semibold text-muse">Tip:</strong> turn on Bluetooth on the WG1200 first by
+            <strong class="font-semibold text-muse">swiping right</strong> on the touchscreen (or double-pressing the top button).
+          </span>
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2" aria-live="polite">
+        <span id="prov-crypto-badge" class={badge}>Crypto v5: testing…</span>
+        <span id="prov-proxy-badge" class={badge}>Proxy: checking…</span>
+        <span id="prov-ble-badge" class={badge}>BLE: disconnected</span>
+      </div>
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center gap-2.5">
+      <button type="button" id="ble-connect-btn" class={primaryBtn}>
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 7l10 10-5 5V2l5 5L7 17" />
+        </svg>
+        Connect via Web Bluetooth
+      </button>
+      <button type="button" id="ble-disconnect-btn" class={secondaryBtn} disabled>Disconnect</button>
+      <button type="button" id="ble-refresh-btn" class={secondaryBtn} disabled>Refresh Device Info</button>
+      <label for="ble-accept-all" class="inline-flex cursor-pointer items-center gap-2 text-xs text-ink-secondary">
+        <input type="checkbox" id="ble-accept-all" class="accent-[var(--accent-muse)]" />
+        Show all BLE devices (if the name isn't matched)
+      </label>
+    </div>
+
+    <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <table class="w-full font-mono text-xs" aria-label="Home Link service status">
+        <tbody class="divide-y divide-line">
+          <tr><th scope="row" class={rowLabel}>BLE Device</th><td id="st-ble-name" class={rowValue}>—</td></tr>
+          <tr><th scope="row" class={rowLabel}>Home Link Service</th><td id="st-homelink-svc" class={rowValue}>Not connected</td></tr>
+          <tr><th scope="row" class={rowLabel}>Node ID</th><td id="st-node-id" class={rowValue}>—</td></tr>
+          <tr><th scope="row" class={rowLabel}>Full Device ID</th><td id="st-full-device-id" class={rowValue}>—</td></tr>
+          <tr><th scope="row" class={rowLabel}>Firmware / Auth</th><td id="st-fw-auth" class={rowValue}>—</td></tr>
+        </tbody>
+      </table>
+      <table class="w-full font-mono text-xs" aria-label="Muse Companion service status">
+        <tbody class="divide-y divide-line">
+          <tr><th scope="row" class={rowLabel}>Companion Service</th><td id="st-companion-svc" class={rowValue}>Not connected</td></tr>
+          <tr><th scope="row" class={rowLabel}>Wi-Fi</th><td id="st-wifi" class={rowValue}>—</td></tr>
+          <tr><th scope="row" class={rowLabel}>Home Link Linked?</th><td id="st-link" class={rowValue}>—</td></tr>
+          <tr><th scope="row" class={rowLabel}>Muse VM</th><td id="st-hatch" class={rowValue}>—</td></tr>
+          <tr><th scope="row" class={rowLabel}>Last BLE Reply</th><td id="st-last-reply" class={rowValue}>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div
+    id="ble-confirm-banner"
+    class="confirm-pulse hidden rounded-xl border-2 border-state-warning bg-state-warning-bg px-5 py-4 text-sm font-semibold text-ink"
+    role="alert"
+    aria-live="assertive"
+  >
+    Action required on the WG1200: tap <strong class="text-state-warning">Confirm</strong> on the screen, or briefly press the
+    <strong class="text-state-warning">top button</strong> (don't hold it: 5 s resets Muse). 60 s timeout.
+  </div>
+
+  <!-- 2. Credentials & token minting -->
+  <form id="prov-form" class="grid grid-cols-1 lg:grid-cols-2 gap-6" novalidate>
+    <section class="instrument-panel p-6 space-y-4">
+      <h3 class="font-display text-sm font-semibold text-ink">2A · Wi-Fi &amp; SDK token</h3>
+
+      <div>
+        <label for="prov-wifi-ssid" class={label}>Wi-Fi SSID (2.4 GHz)</label>
+        <input
+          type="text"
+          id="prov-wifi-ssid"
+          name="wifi_ssid"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Your 2.4 GHz Wi-Fi network name"
+          class={input}
+        />
+      </div>
+
+      <div>
+        <label for="prov-wifi-pass" class={label}>Wi-Fi password</label>
+        <div class="mt-1 flex items-center gap-2">
+          <input
+            type="password"
+            id="prov-wifi-pass"
+            name="wifi_pass"
+            autocomplete="current-password"
+            placeholder="Wi-Fi password"
+            class={`${input} !mt-0`}
+          />
+          <button type="button" id="prov-wifi-pass-toggle" class={smallBtn} aria-pressed="false" aria-controls="prov-wifi-pass">
+            Show
+          </button>
+        </div>
+        <label for="prov-wifi-remember" class="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs text-ink-secondary">
+          <input type="checkbox" id="prov-wifi-remember" class="accent-[var(--accent-muse)]" />
+          Remember Wi-Fi password in this browser
+        </label>
+      </div>
+
+      <div>
+        <label for="prov-sdk-token" class={label}>
+          SDK token (<code class="font-mono text-[11px] text-muse">mgst_…</code>, 48 chars)
+        </label>
+        <div class="mt-1 flex items-center gap-2">
+          <input
+            type="text"
+            id="prov-sdk-token"
+            name="sdk_token"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="mgst_..."
+            aria-describedby="prov-sdk-token-hint"
+            class={`${input} !mt-0`}
+          />
+          <button type="button" id="prov-sdk-usb-btn" class={smallBtn} title="Sends >sdk_token=mgst_... over USB Serial (115200 baud)">
+            Write via USB Serial
+          </button>
+        </div>
+        <span id="prov-sdk-token-hint" class={hint}>
+          Create one at <a href="https://gadgets.muse.ai/settings/sdk-tokens" target="_blank" rel="noopener" class="text-muse underline">gadgets.muse.ai</a>
+          (Account &gt; SDK tokens). Shared with the flasher tab and remembered in this browser.
+        </span>
+        <span id="prov-sdk-token-check" class="mt-1 block text-[11px]" aria-live="polite"></span>
+      </div>
+
+      <div>
+        <label for="prov-node-id" class={label}>Node ID (<code class="font-mono text-[11px]">homelink-xxxxxx</code>)</label>
+        <input
+          type="text"
+          id="prov-node-id"
+          name="device_id"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="homelink-xxxxxx (filled on BLE or USB connect)"
+          aria-describedby="prov-node-id-hint"
+          class={input}
+        />
+        <span id="prov-node-id-hint" class={hint}>
+          Lowercase tail of the BLE name <code class="font-mono">MuseGadget-XXXXXX</code>. Sent as <code class="font-mono">device_id</code> when minting.
+        </span>
+      </div>
+
+      <div class="rounded-xl border border-wxm-border bg-wxm-subtle/40 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs text-ink-secondary">Running Muse and want stock WeatherXM back?</span>
+          <button
+            type="button"
+            id="serial-boot-wxm-btn"
+            class="rounded-lg border border-wxm-border bg-wxm-subtle hover:bg-wxm/20 px-3 py-2 text-xs font-semibold text-wxm transition-colors"
+            title="Sends >boot.weatherxm over USB Serial at 115200 baud"
+          >
+            Return WG1200 to WeatherXM (USB)
+          </button>
+        </div>
+        <p id="prov-usb-status" class="mt-2 font-mono text-[11px] text-ink-muted empty:hidden" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="instrument-panel p-6 space-y-4">
+      <h3 class="font-display text-sm font-semibold text-ink">2B · Muse VM &amp; 365-day device tokens</h3>
+
+      <div>
+        <label for="prov-vm-id" class={label}>Muse VM ID</label>
+        <input
+          type="text"
+          id="prov-vm-id"
+          name="vm_id"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Filled by Verify Token, or paste your VM ID"
+          class={input}
+        />
+      </div>
+
+      <div>
+        <label for="prov-hatch-host" class={label}>Muse VM server (optional)</label>
+        <input
+          type="text"
+          id="prov-hatch-host"
+          name="hatch_host"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="hatch.metaaivm.com (default)"
+          aria-describedby="prov-hatch-host-hint"
+          class={input}
+        />
+        <span id="prov-hatch-host-hint" class={hint}>
+          Bare hostname, no <code class="font-mono">https://</code>. Leave empty for the firmware default.
+          <code class="font-mono">muse.ai</code> is the account API, not the VM server.
+        </span>
+      </div>
+
+      <div>
+        <label for="prov-web-token" class={label}>
+          Web access token (from <code class="font-mono text-[11px]">https://muse.ai/api/auth/check</code>)
+        </label>
+        <textarea
+          id="prov-web-token"
+          name="web_token"
+          rows="2"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Paste web access_token (s0:... or eyJ...) to mint a 365-day device token pair"
+          aria-describedby="prov-web-token-hint"
+          class={`${input} resize-y min-h-[3.5rem]`}
+        ></textarea>
+        <span id="prov-web-token-hint" class={hint}>
+          In your logged-in <a href="https://muse.ai" target="_blank" rel="noopener" class="text-muse underline">muse.ai</a> tab, open
+          DevTools (F12) → Console, paste this snippet and press Enter. It copies your web token to the clipboard; paste it above.
+          If Chrome blocks pasting, type <code class="font-mono">allow pasting</code> first.
+        </span>
+        <div class="relative mt-2">
+          <pre
+            id="prov-devtools-snippet"
+            tabindex="0"
+            aria-label="DevTools console snippet"
+            class="select-all overflow-x-auto whitespace-pre rounded-lg border border-line bg-canvas px-3 py-2.5 pr-16 font-mono text-[11px] leading-relaxed text-ink-secondary">{DEVTOOLS_SNIPPET}</pre>
+          <button
+            type="button"
+            id="prov-copy-snippet-btn"
+            class="absolute right-2 top-2 rounded-md border border-line bg-surface-raised hover:bg-surface-hover px-2 py-1 font-mono text-[10px] text-ink-secondary hover:text-ink transition-colors"
+          >
+            Copy
+          </button>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button type="submit" id="prov-mint-btn" class={primaryBtn}>Mint 365-Day Device Tokens</button>
+          <button type="button" id="prov-verify-btn" class={secondaryBtn}>Verify Token (/fetch_vms)</button>
+        </div>
+      </div>
+
+      <div>
+        <label for="prov-device-access-token" class={label}>Device <code class="font-mono text-[11px]">access_token</code> (365-day)</label>
+        <input
+          type="text"
+          id="prov-device-access-token"
+          name="device_access_token"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Filled by Mint (or paste an existing device access_token)"
+          class={input}
+        />
+      </div>
+
+      <div>
+        <label for="prov-device-refresh-token" class={label}>Device <code class="font-mono text-[11px]">refresh_token</code> (365-day)</label>
+        <input
+          type="text"
+          id="prov-device-refresh-token"
+          name="device_refresh_token"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Filled by Mint (or paste an existing device refresh_token)"
+          class={input}
+        />
+      </div>
+
+      <div class="flex justify-end">
+        <button type="button" id="prov-forget-btn" class="font-mono text-[11px] text-ink-muted underline hover:text-state-danger">
+          Forget saved setup in this browser
+        </button>
+      </div>
+    </section>
+  </form>
+
+  <!-- 3. One-click provisioning -->
+  <section class="instrument-panel p-6">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h3 class="font-display text-sm font-semibold text-ink">
+        Step 3 · One-click provisioning (Home Link <code class="font-mono text-xs">provision_v2</code> + Companion <code class="font-mono text-xs">muse_ble</code>)
+      </h3>
+      <span id="ble-action-status-text" class="font-mono text-[11px] text-ink-muted">Connect over BLE to enable provisioning</span>
+    </div>
+
+    <ol class="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2" aria-live="polite">
+      {
+        PROVISION_STEPS.map((name, i) => (
+          <li
+            id={`prov-step-${i + 1}`}
+            data-state=""
+            class="prov-step rounded-lg border border-line bg-canvas-subtle px-2.5 py-2 font-mono text-[11px] text-ink-muted"
+          >
+            {i + 1}. {name}
+          </li>
+        ))
+      }
+    </ol>
+
+    <div class="mt-5 flex flex-wrap items-center gap-2.5">
+      <button type="button" id="prov-full-btn" class={primaryBtn} disabled>1-Click Full Provision (Home Link + Companion)</button>
+      <button type="button" id="prov-homelink-btn" class={secondaryBtn} disabled>Home Link (provision_v2) Only</button>
+      <button type="button" id="prov-companion-btn" class={secondaryBtn} disabled>Companion (muse_ble) Only</button>
+      <button type="button" id="prov-hatch-test-btn" class={secondaryBtn} disabled>Test VM Connection (hatch.test)</button>
+      <button
+        type="button"
+        id="prov-unpair-btn"
+        disabled
+        class="rounded-xl border border-state-danger-border bg-state-danger-bg hover:bg-state-danger/20 px-3.5 py-2.5 text-xs font-medium text-state-danger transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Unpair / Reset Home Link
+      </button>
+    </div>
+  </section>
+</div>

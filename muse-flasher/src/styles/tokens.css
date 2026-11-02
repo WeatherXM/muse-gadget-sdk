@@ -1,0 +1,54 @@
+:root {
+  /* Dark laboratory instrument palette */
+  --bg-canvas: #080b11;
+  --bg-canvas-subtle: #0d121b;
+  --bg-surface: #121824;
+  --bg-surface-hover: #172030;
+  --bg-surface-raised: #1a2436;
+  --bg-surface-overlay: rgba(18, 24, 36, 0.86);
+
+  /* Text hierarchy */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  /* Hairlines & borders */
+  --border-subtle: rgba(148, 163, 184, 0.14);
+  --border-strong: rgba(148, 163, 184, 0.28);
+
+  /* Brand accents: WeatherXM (Atmospheric Blue) */
+  --accent-wxm: #0a84ff;
+  --accent-wxm-hover: #389bff;
+  --accent-wxm-subtle: rgba(10, 132, 255, 0.12);
+  --accent-wxm-border: rgba(10, 132, 255, 0.38);
+
+  /* Brand accents: Muse (Emerald / Teal Precision) */
+  --accent-muse: #10b981;
+  --accent-muse-hover: #34d399;
+  --accent-muse-subtle: rgba(16, 185, 129, 0.12);
+  --accent-muse-border: rgba(16, 185, 129, 0.40);
+
+  /* Legacy alias for compatibility */
+  --accent-mesh: #10b981;
+  --accent-mesh-hover: #34d399;
+  --accent-mesh-subtle: rgba(16, 185, 129, 0.12);
+  --accent-mesh-border: rgba(16, 185, 129, 0.40);
+
+  /* Semantic state tokens */
+  --state-success: #22c55e;
+  --state-success-bg: rgba(34, 197, 94, 0.12);
+  --state-success-border: rgba(34, 197, 94, 0.35);
+
+  --state-warning: #f59e0b;
+  --state-warning-bg: rgba(245, 158, 11, 0.12);
+  --state-warning-border: rgba(245, 158, 11, 0.35);
+
+  --state-danger: #ef4444;
+  --state-danger-bg: rgba(239, 68, 68, 0.12);
+  --state-danger-border: rgba(239, 68, 68, 0.35);
+
+  /* Typography */
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}

@@ -1,0 +1,36 @@
+<section
+  id="post-flash-panel"
+  class="hidden instrument-panel p-6 border-state-success-border bg-state-success-bg/30"
+>
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <div class="inline-flex items-center gap-2 rounded-pill border border-state-success-border bg-state-success-bg px-3 py-0.5 font-mono text-xs font-semibold text-state-success">
+        <span>✓ Operation Verified</span>
+        <span id="post-flash-mode-badge">Instant Slot Switch</span>
+      </div>
+      <h3 id="post-flash-title" class="mt-2 font-display text-xl font-bold text-ink">
+        WG1200 Booted Successfully
+      </h3>
+      <p id="post-flash-desc" class="mt-1 text-sm text-ink-secondary">
+        Your device is now running the selected firmware.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        id="post-flash-open-ble-btn"
+        class="inline-flex items-center gap-2 rounded-xl bg-muse hover:bg-muse-hover px-4 py-2.5 text-xs font-semibold text-canvas shadow-glow-muse transition-all"
+      >
+        <span>Continue to Step 2: Token &amp; BLE Setup →</span>
+      </button>
+      <button
+        type="button"
+        id="post-flash-reconnect-usb-btn"
+        class="rounded-xl border border-line bg-surface hover:bg-surface-hover px-3.5 py-2.5 text-xs font-medium text-ink-secondary hover:text-ink transition-colors"
+      >
+        Re-Inspect via USB
+      </button>
+    </div>
+  </div>
+</section>

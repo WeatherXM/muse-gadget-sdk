@@ -1,0 +1,127 @@
+<section id="device-status-panel" class="hidden instrument-panel p-6">
+  <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-line">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <span class="h-2.5 w-2.5 rounded-full bg-state-success"></span>
+        <h2 class="font-display text-lg font-semibold text-ink">
+          Connected WG1200 Hardware &amp; Partition Telemetry
+        </h2>
+      </div>
+      <p class="mt-0.5 text-xs text-ink-secondary">
+        Live readback from ESP32-S3 flash (`0x00C000` partition table, `0x013000` otadata, and slot app descriptors).
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <span
+        id="dev-active-flavor-pill"
+        class="rounded-pill border border-line-strong bg-surface-raised px-3 py-1 font-mono text-xs font-semibold text-ink"
+      >
+        Active: —
+      </span>
+      <span
+        id="dev-pt-status-pill"
+        class="rounded-pill border border-line bg-canvas-subtle px-3 py-1 font-mono text-xs text-ink-secondary"
+      >
+        Partition Table: Verified
+      </span>
+    </div>
+  </div>
+
+  <!-- Hardware Identity Row -->
+  <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3">
+      <div class="text-[11px] font-mono uppercase text-ink-muted">Chip &amp; Flash</div>
+      <div id="dev-chip-flash" class="mt-1 font-mono text-xs font-semibold text-ink">
+        ESP32-S3 · 16 MB
+      </div>
+    </div>
+
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3">
+      <div class="text-[11px] font-mono uppercase text-ink-muted">Base MAC / EUI-64</div>
+      <div id="dev-mac-eui" class="mt-1 font-mono text-xs font-semibold text-ink truncate">
+        —
+      </div>
+    </div>
+
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3">
+      <div class="text-[11px] font-mono uppercase text-ink-muted">Muse BLE Name</div>
+      <div id="dev-muse-ble-name" class="mt-1 font-mono text-xs font-semibold text-muse">
+        —
+      </div>
+    </div>
+
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3">
+      <div class="text-[11px] font-mono uppercase text-ink-muted">WeatherXM BLE Name</div>
+      <div id="dev-wxm-ble-name" class="mt-1 font-mono text-xs font-semibold text-wxm">
+        —
+      </div>
+    </div>
+  </div>
+
+  <!-- Three-Slot Flash Inventory -->
+  <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+    <!-- factory (0x020000) -->
+    <div id="slot-card-factory" class="rounded-xl border border-line bg-canvas-subtle/80 p-3.5">
+      <div class="flex items-center justify-between">
+        <span class="font-mono text-xs font-semibold text-ink-secondary">
+          factory · 0x020000
+        </span>
+        <span
+          id="slot-badge-factory"
+          class="rounded-pill border border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted"
+        >
+          Recovery Protected
+        </span>
+      </div>
+      <div id="slot-app-factory" class="mt-2 font-mono text-xs font-semibold text-ink">
+        —
+      </div>
+      <div id="slot-meta-factory" class="mt-0.5 font-mono text-[11px] text-ink-muted">
+        Immutable factory fallback
+      </div>
+    </div>
+
+    <!-- ota_0 (0x420000) - WeatherXM -->
+    <div id="slot-card-ota0" class="rounded-xl border border-line bg-canvas-subtle/80 p-3.5">
+      <div class="flex items-center justify-between">
+        <span class="font-mono text-xs font-semibold text-wxm">
+          ota_0 · 0x420000 (WeatherXM)
+        </span>
+        <span
+          id="slot-badge-ota0"
+          class="rounded-pill border border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted"
+        >
+          Standby
+        </span>
+      </div>
+      <div id="slot-app-ota0" class="mt-2 font-mono text-xs font-semibold text-ink">
+        —
+      </div>
+      <div id="slot-meta-ota0" class="mt-0.5 font-mono text-[11px] text-ink-muted">
+        —
+      </div>
+    </div>
+
+    <!-- ota_1 (0x820000) - Muse -->
+    <div id="slot-card-ota1" class="rounded-xl border border-line bg-canvas-subtle/80 p-3.5">
+      <div class="flex items-center justify-between">
+        <span class="font-mono text-xs font-semibold text-muse">
+          ota_1 · 0x820000 (Muse OS)
+        </span>
+        <span
+          id="slot-badge-ota1"
+          class="rounded-pill border border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted"
+        >
+          Standby
+        </span>
+      </div>
+      <div id="slot-app-ota1" class="mt-2 font-mono text-xs font-semibold text-ink">
+        —
+      </div>
+      <div id="slot-meta-ota1" class="mt-0.5 font-mono text-[11px] text-ink-muted">
+        —
+      </div>
+    </div>
+  </div>
+</section>

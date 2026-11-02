@@ -1,0 +1,193 @@
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <!-- Card 1: Muse Gadget OS (ota_1 @ 0x820000) -->
+  <article
+    id="card-firmware-muse"
+    class="instrument-panel p-6 flex flex-col justify-between border-muse-border/60 relative overflow-hidden"
+  >
+    <div>
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="inline-flex items-center gap-2 rounded-pill border border-muse-border bg-muse-subtle px-2.5 py-0.5 font-mono text-[11px] font-medium text-muse">
+            Slot B · ota_1 (0x820000) · RSA-3072 Signed
+          </div>
+          <h3 class="mt-2.5 font-display text-xl font-bold text-ink">
+            Muse Gadget OS (WG1200 Dual-Boot)
+          </h3>
+          <p class="mt-1 text-xs font-medium text-muse">
+            Hatch Link + Companion BLE + Weather Station Touch UI
+          </p>
+        </div>
+        <span
+          id="muse-card-status-badge"
+          class="rounded-pill border border-line bg-canvas-subtle px-2.5 py-1 font-mono text-[11px] text-ink-secondary shrink-0"
+        >
+          v999.0.0
+        </span>
+      </div>
+
+      <p class="mt-3 text-sm text-ink-secondary leading-relaxed">
+        Installs signed Muse Gadget firmware to <code class="font-mono text-xs text-ink">ota_1 (0x820000)</code> and ensures the <code class="font-mono text-xs text-ink">muse_nvs (0xF21000)</code> partition is present. Your WeatherXM firmware in <code class="font-mono text-xs text-ink">ota_0</code> and <code class="font-mono text-xs text-ink">factory</code> stays untouched.
+      </p>
+
+      <ul class="mt-4 space-y-1.5 text-xs text-ink-secondary">
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-muse"></span>
+          <span>1-tap <strong>"Switch to WeatherXM"</strong> button directly on the WG1200 touchscreen</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-muse"></span>
+          <span>P-256 ECDH + AES-256-GCM Home Link &amp; Companion BLE provisioning</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-muse"></span>
+          <span>Auto-injects your <code class="font-mono text-[11px]">mgst_...</code> SDK token over USB right after boot</span>
+        </li>
+      </ul>
+
+      <!-- Pre-Flash Optional SDK Token Input -->
+      <div class="mt-5 rounded-xl border border-line bg-canvas-subtle p-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <label for="pre-flash-sdk-token" class="text-xs font-semibold text-ink">
+            Muse Gadget SDK Token (<code class="font-mono text-[11px] text-muse">mgst_...</code>)
+          </label>
+          <span class="font-mono text-[10px] text-ink-muted">Auto-injected on boot</span>
+        </div>
+        <input
+          type="text"
+          id="pre-flash-sdk-token"
+          name="pre-flash-sdk-token"
+          placeholder="mgst_... (48 characters, optional during flash)"
+          pattern="^mgst_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"
+          autocomplete="off"
+          spellcheck="false"
+          class="mt-2 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-ink placeholder:text-ink-muted focus:border-muse focus:outline-none"
+        />
+        <p id="pre-flash-sdk-token-hint" class="mt-1.5 text-[11px] text-ink-muted">
+          If provided, the flasher automatically sends <code class="font-mono">&gt;sdk_token=...</code> over USB Serial as soon as Muse boots.
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-6 pt-4 border-t border-line flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div class="font-mono text-[11px] text-ink-muted">
+        <div>SHA-256: <span id="muse-sha-short">2cafa8f6bd0a…</span></div>
+        <div id="muse-install-mode-hint" class="text-muse">Target: ota_1 (0x820000)</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          id="force-reflash-muse-btn"
+          disabled
+          class="hidden rounded-xl border border-line bg-surface-raised hover:bg-surface-hover px-3 py-2.5 text-xs font-medium text-ink-secondary hover:text-ink transition-colors disabled:opacity-40"
+          title="Force full binary write to ota_1 even if already installed"
+        >
+          Re-Flash Binary
+        </button>
+
+        <button
+          type="button"
+          id="install-muse-btn"
+          disabled
+          class="inline-flex items-center justify-center gap-2 rounded-xl bg-muse hover:bg-muse-hover px-5 py-2.5 text-sm font-semibold text-canvas shadow-glow-muse transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <span id="install-muse-btn-label">Install &amp; Boot Muse OS</span>
+        </button>
+      </div>
+    </div>
+  </article>
+
+  <!-- Card 2: WeatherXM Official Firmware (ota_0 @ 0x420000) -->
+  <article
+    id="card-firmware-weatherxm"
+    class="instrument-panel p-6 flex flex-col justify-between border-wxm-border/60 relative overflow-hidden"
+  >
+    <div>
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="inline-flex items-center gap-2 rounded-pill border border-wxm-border bg-wxm-subtle px-2.5 py-0.5 font-mono text-[11px] font-medium text-wxm">
+            Slot A · ota_0 (0x420000) · Official Signed
+          </div>
+          <h3 class="mt-2.5 font-display text-xl font-bold text-ink">
+            WeatherXM Official Gateway Firmware
+          </h3>
+          <p class="mt-1 text-xs font-medium text-wxm">
+            M5 WG1200 Production Station Gateway
+          </p>
+        </div>
+
+        <span
+          id="wxm-card-status-badge"
+          class="rounded-pill border border-line bg-canvas-subtle px-2.5 py-1 font-mono text-[11px] text-ink-secondary shrink-0"
+        >
+          v0.8.39
+        </span>
+      </div>
+
+      <p class="mt-3 text-sm text-ink-secondary leading-relaxed">
+        Boots or restores the official factory-signed WeatherXM WG1200 firmware in <code class="font-mono text-xs text-ink">ota_0 (0x420000)</code>. If WeatherXM is already in <code class="font-mono text-xs text-ink">ota_0</code>, switching back from Muse takes <strong>~2 seconds</strong> without re-flashing.
+      </p>
+
+      <ul class="mt-4 space-y-1.5 text-xs text-ink-secondary">
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-wxm"></span>
+          <span>Preserves station claiming keys, EUI-64, LoRa settings &amp; Wi-Fi</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-wxm"></span>
+          <span>Keeps Muse Gadget OS installed in <code class="font-mono text-[11px]">ota_1</code> for instant switching</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-wxm"></span>
+          <span>Includes latest v0.8.39 plus v0.8.34 and v0.6.2 rollback images</span>
+        </li>
+      </ul>
+
+      <!-- WeatherXM Release Selector -->
+      <div class="mt-5 rounded-xl border border-line bg-canvas-subtle p-3.5">
+        <label for="wxm-version-select" class="block text-xs font-semibold text-ink">
+          Select WeatherXM Signed Release (<code class="font-mono text-[11px] text-wxm">ota_0</code>)
+        </label>
+        <select
+          id="wxm-version-select"
+          class="mt-2 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-ink focus:border-wxm focus:outline-none"
+        >
+          <option value="weatherxm">v0.8.39-g80c3a1c (Latest Official — Recommended)</option>
+          <option value="weatherxm_0_8_34">v0.8.34-g86b609b (Previous Stable)</option>
+          <option value="weatherxm_0_6_2">v0.6.2-g8f4dca2 (Legacy Release)</option>
+        </select>
+        <p class="mt-1.5 text-[11px] text-ink-muted">
+          Tip: If Muse is currently running, you can also switch to WeatherXM in 1 second via the touchscreen or USB Serial command <code class="font-mono">&gt;boot.weatherxm</code>.
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-6 pt-4 border-t border-line flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div class="font-mono text-[11px] text-ink-muted">
+        <div>SHA-256: <span id="wxm-sha-short">a60fe48b11a7…</span></div>
+        <div id="wxm-install-mode-hint" class="text-wxm">Target: ota_0 (0x420000)</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          id="force-reflash-wxm-btn"
+          disabled
+          class="hidden rounded-xl border border-line bg-surface-raised hover:bg-surface-hover px-3 py-2.5 text-xs font-medium text-ink-secondary hover:text-ink transition-colors disabled:opacity-40"
+          title="Force full binary write to ota_0 even if already installed"
+        >
+          Re-Flash Binary
+        </button>
+
+        <button
+          type="button"
+          id="install-wxm-btn"
+          disabled
+          class="inline-flex items-center justify-center gap-2 rounded-xl bg-wxm hover:bg-wxm-hover px-5 py-2.5 text-sm font-semibold text-white shadow-glow-wxm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <span id="install-wxm-btn-label">Switch / Install WeatherXM</span>
+        </button>
+      </div>
+    </div>
+  </article>
+</section>

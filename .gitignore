@@ -24,3 +24,11 @@ muse-simulator.ppm
 # Local gadget provisioning and original-device flash backups.
 .sdk-token
 /backups/
+
+# Muse WG1200 Cloudflare Web Flasher build artifacts
+muse-flasher/node_modules/
+muse-flasher/dist/
+muse-flasher/.astro/
+muse-flasher/.wrangler/
+muse-flasher/.dev.vars
+

@@ -1,0 +1,26 @@
+<section id="flash-progress-panel" class="hidden instrument-panel p-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-2">
+        <span id="flash-progress-spinner" class="h-2.5 w-2.5 rounded-full bg-wxm animate-ping"></span>
+        <h3 id="flash-progress-stage" class="font-display text-base font-semibold text-ink">
+          Preparing Flash Operation...
+        </h3>
+      </div>
+      <p id="flash-progress-sub" class="mt-1 font-mono text-xs text-ink-secondary">
+        Do not unplug the USB-C cable while flash or otadata verification is in progress.
+      </p>
+    </div>
+    <span id="flash-progress-pct" class="font-mono text-xl font-bold text-ink">
+      0%
+    </span>
+  </div>
+
+  <div class="mt-4 h-2.5 w-full overflow-hidden rounded-pill bg-canvas-subtle border border-line">
+    <div
+      id="flash-progress-bar"
+      class="h-full bg-gradient-to-r from-wxm to-muse transition-all duration-200"
+      style="width: 0%"
+    ></div>
+  </div>
+</section>

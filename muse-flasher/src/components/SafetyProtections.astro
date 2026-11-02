@@ -1,0 +1,53 @@
+<section class="instrument-panel p-6">
+  <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-line">
+    <div>
+      <h2 class="font-display text-base font-semibold text-ink">
+        WG1200 Hardware Safety Guard &amp; Dual-Boot Architecture
+      </h2>
+      <p class="mt-0.5 text-xs text-ink-secondary">
+        Enforced in-browser write barriers protect your WeatherXM station identity, Secure Boot V2 bootloader, and NVS calibration data.
+      </p>
+    </div>
+    <span class="rounded-pill border border-state-success-border bg-state-success-bg px-3 py-1 font-mono text-[11px] font-medium text-state-success">
+      Write Guard Active
+    </span>
+  </div>
+
+  <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3.5">
+      <div class="font-mono text-[11px] font-semibold text-ink">
+        RSA-3072 Secure Boot V2
+      </div>
+      <p class="mt-1 text-ink-muted">
+        Every image's SHA-256 and RSA-PSS signature are checked against the WG1200 signing key before a byte is written, and the whole slot is MD5-verified on the chip afterwards.
+      </p>
+    </div>
+
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3.5">
+      <div class="font-mono text-[11px] font-semibold text-wxm">
+        WeatherXM NVS Protected
+      </div>
+      <p class="mt-1 text-ink-muted">
+        Writes to <code class="font-mono">0x0000–0xBFF0</code>, <code class="font-mono">nvs (0xF000)</code>, <code class="font-mono">factory (0x20000)</code>, <code class="font-mono">nvs_key (0xC20000)</code>, and <code class="font-mono">spiffs</code> are strictly blocked.
+      </p>
+    </div>
+
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3.5">
+      <div class="font-mono text-[11px] font-semibold text-muse">
+        Isolated `muse_nvs` (`0xF21000`)
+      </div>
+      <p class="mt-1 text-ink-muted">
+        Muse stores its SDK token, BLE pairing keys, and Wi-Fi credentials in its own 64 KB partition at <code class="font-mono">0xF21000</code>.
+      </p>
+    </div>
+
+    <div class="rounded-xl border border-line bg-canvas-subtle p-3.5">
+      <div class="font-mono text-[11px] font-semibold text-ink">
+        Instant Slot Switch
+      </div>
+      <p class="mt-1 text-ink-muted">
+        With WeatherXM in <code class="font-mono">ota_0</code> and Muse in <code class="font-mono">ota_1</code>, switching firmwares only updates <code class="font-mono">otadata (0x13000)</code>, after a quick on-chip check that the slot holds the exact build.
+      </p>
+    </div>
+  </div>
+</section>

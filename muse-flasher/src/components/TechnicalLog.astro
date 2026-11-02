@@ -1,0 +1,39 @@
+<section class="instrument-panel overflow-hidden">
+  <details id="technical-log-details" open class="group">
+    <summary class="flex cursor-pointer list-none items-center justify-between px-6 py-4 hover:bg-surface-hover/50 transition-colors">
+      <div class="flex items-center gap-2.5">
+        <span class="h-2 w-2 rounded-full bg-muse"></span>
+        <span class="font-display text-sm font-semibold text-ink">
+          Live Technical Telemetry &amp; Serial / BLE Log
+        </span>
+        <span id="log-line-count" class="rounded-pill border border-line bg-canvas-subtle px-2 py-0.5 font-mono text-[10px] text-ink-muted">
+          0 lines
+        </span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          id="copy-logs-btn"
+          class="rounded-lg border border-line bg-canvas-subtle hover:bg-surface-raised px-2.5 py-1 font-mono text-[11px] text-ink-secondary hover:text-ink"
+        >
+          Copy
+        </button>
+        <button
+          type="button"
+          id="clear-logs-btn"
+          class="rounded-lg border border-line bg-canvas-subtle hover:bg-surface-raised px-2.5 py-1 font-mono text-[11px] text-ink-secondary hover:text-ink"
+        >
+          Clear
+        </button>
+      </div>
+    </summary>
+
+    <div class="border-t border-line bg-canvas/90 p-4">
+      <pre
+        id="technical-log-output"
+        class="max-h-72 overflow-y-auto font-mono text-xs leading-relaxed text-ink-secondary whitespace-pre-wrap break-words"
+      ></pre>
+    </div>
+  </details>
+</section>
