@@ -39,7 +39,9 @@ describe('WG1200 Dual-Boot Flasher Core', () => {
     expect(desc.valid).toBe(true);
     expect(desc.flavor).toBe('muse');
     expect(desc.projectName).toBe('muse-gadget');
-    expect(desc.version).toBe('999.0.0');
+    // The bundled build matches what the manifest advertises.
+    const manifest = JSON.parse(fs.readFileSync(path.join(publicDir, 'firmware', 'manifest.json'), 'utf8'));
+    expect(desc.version).toBe(manifest.firmwares.muse.version);
 
     const sigCheck = verifySignedAppBinary(museBytes);
     expect(sigCheck.valid).toBe(true);
