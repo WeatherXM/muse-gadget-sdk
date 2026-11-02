@@ -82,3 +82,41 @@ describe('READ_FLASH over the esptool-js stub', () => {
     expect(timeouts.slice(0, 2)).toEqual([10000, 10000]); // not esptool-js's 100 s
   });
 });
+
+describe('stalled flash reads', () => {
+  const makeSession = async (loaders: Array<{ readFlash: () => Promise<Uint8Array> }>) => {
+    const { EspFlashSession } = await import('../src/lib/flasher/transport');
+    const warnings: string[] = [];
+    const session = new EspFlashSession({} as SerialPort, {
+      info: () => {},
+      warn: (m) => warnings.push(m),
+      error: () => {},
+    });
+    let resyncs = 0;
+    const s = session as any;
+    s.loader = loaders.shift();
+    s.disconnectQuietly = async () => {
+      s.loader = null;
+    };
+    s.connectAndSync = async () => {
+      resyncs++;
+      s.loader = loaders.shift();
+    };
+    return { session, warnings, resyncs: () => resyncs };
+  };
+  const stalled = { readFlash: async (): Promise<Uint8Array> => { throw new Error('No serial data received.'); } };
+
+  it('resets the gateway into its bootloader once and retries on the fresh session', async () => {
+    const good = { readFlash: async () => new Uint8Array([1, 2, 3]) };
+    const { session, warnings, resyncs } = await makeSession([stalled, good]);
+    expect(Array.from(await session.readFlashRange(0x13000, 3))).toEqual([1, 2, 3]);
+    expect(resyncs()).toBe(1);
+    expect(warnings.join('\n')).toMatch(/stalled[\s\S]*resetting it into its bootloader/);
+  });
+
+  it('gives up with replug advice when the fresh session stalls too', async () => {
+    const { session, resyncs } = await makeSession([stalled, stalled]);
+    await expect(session.readFlashRange(0x13000, 3)).rejects.toThrow(/Unplug the WG1200/);
+    expect(resyncs()).toBe(1);
+  });
+});

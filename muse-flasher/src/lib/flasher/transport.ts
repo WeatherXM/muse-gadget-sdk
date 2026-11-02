@@ -304,7 +304,9 @@ export function patchEsploaderReadFlash(): void {
   ): Promise<Uint8Array> {
     let pkt = this._appendArray(this._intToByteArray(addr), this._intToByteArray(size));
     pkt = this._appendArray(pkt, this._intToByteArray(0x1000));
-    pkt = this._appendArray(pkt, this._intToByteArray(1024));
+    // Packets the stub may send ahead of our acks: 64, as esptool.py uses
+    // (esptool-js asks for 1024).
+    pkt = this._appendArray(pkt, this._intToByteArray(64));
     const res = await this.checkCommand('read flash', this.ESP_READ_FLASH, pkt);
     if (res != 0) {
       throw new ESPError('Failed to read memory: ' + res);
@@ -505,34 +507,36 @@ export class EspFlashSession {
     };
   }
 
-  private async readChunkWithRetry(
-    offset: number,
-    size: number,
-    retries = 2,
-  ): Promise<Uint8Array> {
-    const loader = this.ensureLoader();
-    let lastError: unknown = null;
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        if (attempt > 0) {
-          try {
-            (this.transport as any)?.flushInput?.();
-          } catch {
-            // ignore
-          }
-          await new Promise((r) => setTimeout(r, 120));
-        }
-        return await loader.readFlash(offset, size);
-      } catch (err) {
-        lastError = err;
-        if (attempt < retries) {
-          this.logger.warn(
-            `readFlash at 0x${offset.toString(16)} (size ${size}) retry ${attempt + 1}/${retries}...`,
-          );
-        }
-      }
+  /**
+   * Resets the chip back into its ROM loader and starts the stub again. A
+   * stub that answered a READ_FLASH but never sent the data stops answering
+   * everything after it (seen over the native USB-JTAG port), so retrying on
+   * the same session can't help; a fresh one can.
+   */
+  private async resync(): Promise<void> {
+    this.logger.warn('The gateway stopped answering; resetting it into its bootloader to recover...');
+    await this.disconnectQuietly();
+    await new Promise((r) => setTimeout(r, 300));
+    await this.connectAndSync();
+  }
+
+  private async readChunkWithRetry(offset: number, size: number): Promise<Uint8Array> {
+    try {
+      return await this.ensureLoader().readFlash(offset, size);
+    } catch (err) {
+      this.logger.warn(
+        `Reading 0x${offset.toString(16)} (${size} bytes) stalled: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
-    throw lastError;
+    await this.resync();
+    try {
+      return await this.ensureLoader().readFlash(offset, size);
+    } catch (err) {
+      throw new Error(
+        `Reading flash at 0x${offset.toString(16)} failed twice, also after resetting the gateway ` +
+          `(${err instanceof Error ? err.message : String(err)}). Unplug the WG1200, plug it back in and connect again.`,
+      );
+    }
   }
 
   async readFlashRange(
