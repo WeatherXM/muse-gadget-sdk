@@ -1,5 +1,6 @@
 {
   "name": "muse-flasher",
+  "account_id": "30df45339dfee7d3af7fbdcef51c0758",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-03-17",
   "workers_dev": true,

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Automatically refreshes local Wrangler OAuth token and syncs it to GitHub
+# Actions secret CLOUDFLARE_API_TOKEN before pushing muse-flasher changes,
+# unless WRANGLER_SKIP_SECRET_SYNC=1 is set.
+
+set -u
+
+if [ "${WRANGLER_SKIP_SECRET_SYNC:-0}" = "1" ]; then
+  exit 0
+fi
+
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+WRANGLER_TOML="$HOME/Library/Preferences/.wrangler/config/default.toml"
+if [ ! -f "$WRANGLER_TOML" ]; then
+  WRANGLER_TOML="$HOME/.config/.wrangler/config/default.toml"
+fi
+
+if [ -f "$WRANGLER_TOML" ] && command -v gh >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+  # Ensure Wrangler refreshes oauth_token if it is close to expiry
+  (cd "$ROOT_DIR/muse-flasher" && npx --no-install wrangler whoami >/dev/null 2>&1) || true
+  TOKEN="$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb")).get("oauth_token", ""))' "$WRANGLER_TOML" 2>/dev/null || true)"
+  if [ -n "$TOKEN" ]; then
+    gh secret set CLOUDFLARE_API_TOKEN --body "$TOKEN" >/dev/null 2>&1 || true
+  fi
+fi
+
+exit 0

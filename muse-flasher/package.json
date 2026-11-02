@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "dev": "astro dev",
     "build": "node scripts/update-manifest.mjs && astro build",
     "preview": "wrangler dev",
