@@ -284,6 +284,53 @@ export function patchEsploaderRunStub(): void {
 
 patchEsploaderRunStub();
 
+// esptool-js waits up to 100 s for each READ_FLASH packet, so a gateway that
+// stops answering stalls the page for minutes. Its stub also follows the data
+// with a 16-byte MD5 of it, which esptool.py reads and esptool-js 0.7 leaves in
+// the stream; read it too, so it can't be taken for the next command's reply.
+const READ_FLASH_PACKET_TIMEOUT_MS = 10000;
+const READ_FLASH_DIGEST_TIMEOUT_MS = 2000;
+let isReadFlashPatched = false;
+
+export function patchEsploaderReadFlash(): void {
+  if (isReadFlashPatched) return;
+  isReadFlashPatched = true;
+
+  (ESPLoader.prototype as any).readFlash = async function (
+    this: any,
+    addr: number,
+    size: number,
+    onPacketReceived: ((packet: Uint8Array, progress: number, total: number) => void) | null = null,
+  ): Promise<Uint8Array> {
+    let pkt = this._appendArray(this._intToByteArray(addr), this._intToByteArray(size));
+    pkt = this._appendArray(pkt, this._intToByteArray(0x1000));
+    pkt = this._appendArray(pkt, this._intToByteArray(1024));
+    const res = await this.checkCommand('read flash', this.ESP_READ_FLASH, pkt);
+    if (res != 0) {
+      throw new ESPError('Failed to read memory: ' + res);
+    }
+    let resp = new Uint8Array(0);
+    while (resp.length < size) {
+      const packet: Uint8Array = await this.transport.read(READ_FLASH_PACKET_TIMEOUT_MS);
+      if (packet.length > 0) {
+        resp = this._appendArray(resp, packet);
+        await this.transport.write(this._intToByteArray(resp.length));
+        onPacketReceived?.(packet, resp.length, size);
+      }
+    }
+    if (this.IS_STUB) {
+      try {
+        await this.transport.read(READ_FLASH_DIGEST_TIMEOUT_MS);
+      } catch {
+        // No digest: the next command's flushInput copes with stray bytes.
+      }
+    }
+    return resp;
+  };
+}
+
+patchEsploaderReadFlash();
+
 export interface LoggerCallbacks {
   info: (msg: string) => void;
   warn: (msg: string) => void;
@@ -312,6 +359,11 @@ export class EspFlashSession {
 
   async connectAndSync(): Promise<void> {
     this.transport = new Transport(this.port, false);
+    // Say so at once when the gateway drops off USB (it reset, or the cable
+    // moved), instead of leaving the next read to time out.
+    (this.transport as any).setDeviceLostCallback?.(() => {
+      this.logger.warn('The WG1200 dropped off USB mid-operation (it reset or was unplugged).');
+    });
     const terminal = {
       clean: () => {},
       writeLine: (data: string) => {

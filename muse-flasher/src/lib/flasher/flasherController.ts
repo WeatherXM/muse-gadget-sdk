@@ -234,6 +234,9 @@ export class FlasherController {
     const targetSlot = entry.targetPartition; // 'ota_1' for Muse, 'ota_0' for WeatherXM
     const targetFlavor: FirmwareFlavor = targetId === 'muse' ? 'muse' : 'weatherxm';
     let instantSwitchPossible = !options?.forceFullFlash && this.canInstantSwitchTo(targetId);
+    // How far it got, so a later failure can say what's already on the chip.
+    let slotReady = false;
+    let bootSlotSet = false;
     const sdkToken = (options?.sdkToken ?? getStoredSdkToken()).trim();
 
     try {
@@ -398,37 +401,45 @@ export class FlasherController {
         }
       }
 
-      // Step 3: Build and write updated otadata (0x13000) to select targetSlot ('ota_0' or 'ota_1')
-      const currentOtadata = await this.session.readFlashRange(OTADATA_OFFSET, OTADATA_SIZE);
-      const { bytes: nextOtadata, nextSeq, targetSector } = buildOtadataForSlot(
-        currentOtadata,
-        targetSlot,
-      );
+      slotReady = true;
 
-      this.log(
-        'info',
-        `Updating otadata sector ${targetSector} with ota_seq=${nextSeq} -> boots ${targetSlot} (${entry.shortName})...`,
-      );
-      this.setState({
-        stage: 'verifying',
-        progress: {
-          stageLabel: `Switching Boot Slot to ${targetSlot}`,
-          subLabel: `Writing ota_seq=${nextSeq} to otadata (0x013000)`,
-          percent: 92,
-          bytesWritten: OTADATA_SIZE,
-          bytesTotal: OTADATA_SIZE,
-        },
-      });
-
-      await this.session.writeGuardedRegion(OTADATA_OFFSET, nextOtadata);
-
-      const verifyOtadata = await this.session.readFlashRange(OTADATA_OFFSET, OTADATA_SIZE);
-      const parsedVerifyOta = parseOtadata(verifyOtadata);
-      if (parsedVerifyOta.activeSlot !== targetSlot) {
-        throw new Error(
-          `otadata verification failed: expected activeSlot=${targetSlot}, got ${parsedVerifyOta.activeSlot}`,
+      // Step 3: Point otadata (0x13000) at targetSlot, unless it already boots it
+      // (updating the running firmware in place): then a reset is all it takes.
+      if (device.otadata.activeSlot === targetSlot) {
+        this.log('info', `${targetSlot} is already the boot slot; otadata unchanged.`);
+      } else {
+        const currentOtadata = await this.session.readFlashRange(OTADATA_OFFSET, OTADATA_SIZE);
+        const { bytes: nextOtadata, nextSeq, targetSector } = buildOtadataForSlot(
+          currentOtadata,
+          targetSlot,
         );
+
+        this.log(
+          'info',
+          `Updating otadata sector ${targetSector} with ota_seq=${nextSeq} -> boots ${targetSlot} (${entry.shortName})...`,
+        );
+        this.setState({
+          stage: 'verifying',
+          progress: {
+            stageLabel: `Switching Boot Slot to ${targetSlot}`,
+            subLabel: `Writing ota_seq=${nextSeq} to otadata (0x013000)`,
+            percent: 92,
+            bytesWritten: OTADATA_SIZE,
+            bytesTotal: OTADATA_SIZE,
+          },
+        });
+
+        await this.session.writeGuardedRegion(OTADATA_OFFSET, nextOtadata);
+
+        const verifyOtadata = await this.session.readFlashRange(OTADATA_OFFSET, OTADATA_SIZE);
+        const parsedVerifyOta = parseOtadata(verifyOtadata);
+        if (parsedVerifyOta.activeSlot !== targetSlot) {
+          throw new Error(
+            `otadata verification failed: expected activeSlot=${targetSlot}, got ${parsedVerifyOta.activeSlot}`,
+          );
+        }
       }
+      bootSlotSet = true;
 
       // Step 4: Hard-reset device and monitor serial boot + auto-inject SDK token if Muse
       this.setState({
@@ -559,7 +570,12 @@ export class FlasherController {
         },
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const reason = err instanceof Error ? err.message : String(err);
+      const msg = !slotReady
+        ? reason
+        : bootSlotSet
+          ? `${reason} ${entry.shortName} is written, verified and set to boot: unplug the WG1200 and plug it back in to start it.`
+          : `${reason} ${entry.shortName} is written and verified in ${targetSlot}, but the boot slot wasn't switched: reconnect and click Install again, which will only switch.`;
       this.log('error', `Operation failed: ${msg}`);
       void sendTelemetryEvent({
         eventType: 'flash_error',
