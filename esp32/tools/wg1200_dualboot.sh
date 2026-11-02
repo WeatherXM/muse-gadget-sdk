@@ -90,13 +90,33 @@ case "$CMD" in
     build)
         activate_idf
         cd "$ROOT"
+        # The WG1200 build carries its own version, like WeatherXM's 0.8.39-g80c3a1c:
+        # devices/wxm-wg1200.version plus the commit (and -dirty for local edits),
+        # instead of upstream's version.txt placeholder (999.0.0). At most 31 chars.
+        WG1200_VERSION=$(tr -d ' \n' < "$ROOT/devices/wxm-wg1200.version")
+        GIT_REV=$(git -C "$ROOT" rev-parse --short=7 HEAD 2>/dev/null || echo nogit)
+        DIRTY=""
+        git -C "$ROOT" diff --quiet HEAD -- . 2>/dev/null || DIRTY="-dirty"
+        PROJECT_VER="${WG1200_VERSION}-g${GIT_REV}${DIRTY}"
+        echo "Building Muse for WG1200, version $PROJECT_VER..."
         idf.py -B "$BUILD_DIR" -DIDF_TARGET=esp32s3 \
             -DSDKCONFIG="$BUILD_DIR/sdkconfig" \
             -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;devices/sdkconfig.wxm-wg1200" \
+            -DPROJECT_VER="$PROJECT_VER" \
             build
         if [ -f "$SIGNING_KEY" ]; then
             echo "Verifying Secure Boot V2 RSA-3072 signature on $BUILD_DIR/muse-gadget.bin..."
             espsecure.py verify_signature --version 2 --keyfile "$SIGNING_KEY" "$BUILD_DIR/muse-gadget.bin"
+        fi
+        MUSE_FLASHER_FW_DIR="$ROOT/../muse-flasher/public/firmware/muse"
+        if [ -d "$MUSE_FLASHER_FW_DIR" ]; then
+            echo "Syncing signed WG1200 artifacts to $MUSE_FLASHER_FW_DIR..."
+            cp "$BUILD_DIR/muse-gadget.bin" "$MUSE_FLASHER_FW_DIR/muse-gadget.bin"
+            cp "$BUILD_DIR/partition_table/partition-table.bin" "$MUSE_FLASHER_FW_DIR/partition-table.bin"
+            make_otadata_slot 1 "$MUSE_FLASHER_FW_DIR/otadata_ota1.bin"
+            if command -v node >/dev/null 2>&1 && [ -f "$ROOT/../muse-flasher/scripts/update-manifest.mjs" ]; then
+                node "$ROOT/../muse-flasher/scripts/update-manifest.mjs"
+            fi
         fi
         ;;
 

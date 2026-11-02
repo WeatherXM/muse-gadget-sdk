@@ -125,6 +125,7 @@ cd esp32
 ./tools/wg1200_dualboot.sh backup /dev/cu.usbserial-1110
 
 # 2. Build RSA-3072 signed Muse firmware for WG1200
+#    (versioned from devices/wxm-wg1200.version, e.g. 0.1.0-g1a2b3c4)
 WXM_SIGNING_KEY=/path/to/secure_boot_signing_key.pem ./tools/wg1200_dualboot.sh build
 
 # 3. Install Muse into ota_1 (0x820000) without touching WeatherXM
@@ -133,6 +134,8 @@ WXM_SIGNING_KEY=/path/to/secure_boot_signing_key.pem ./tools/wg1200_dualboot.sh 
 # 4. Provision your Muse SDK token over USB serial (or via Web Serial on localhost:8099)
 printf '>sdk_token=mgst_...\n' > /dev/cu.usbserial-1110
 ```
+
+**Versioning.** Upstream builds report `999.0.0` (`esp32/version.txt`, Meta's placeholder for builds that don't take Muse OTA updates). The WG1200 build stamps its own version instead: the semver in [`devices/wxm-wg1200.version`](wxm-wg1200.version), the commit, and `-dirty` for uncommitted changes under `esp32/`, for example `0.1.0-g1a2b3c4`. Bump that file for each release. Muse OTA stays off on the WG1200 either way: [`main/ota.c`](../main/ota.c) refuses any update whose target would be `ota_0` or `factory`.
 
 ---
 
