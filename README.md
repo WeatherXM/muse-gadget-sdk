@@ -21,7 +21,7 @@ limitations under the License.
 <p align="center">
   <b>Most AI agents can tell you the forecast. This one looks at the sky outside your window—and measures the actual weather on your roof.</b><br>
   Muse gets live rooftop sensors (<code>sensors.read</code>), sky-camera snapshots from your LAN without port forwarding (<code>lan.fetch</code>) and a <code>480×480</code> canvas (<code>display.draw_file</code>), in a reversible dual-boot (<code>ota_1</code>) that leaves stock WeatherXM untouched.<br>
-  <a href="https://weatherxm.com/product/wb1200-wifi-d1/"><b>WeatherXM D1 Wi-Fi Station (<code>WS1001</code> + <code>WG1200</code>): $50 off with <code>MUSE50</code> → $149</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://weatherxm.github.io/muse-gadget-sdk/"><b>⚡ 1-Click Web Flasher</b></a>
+  <a href="https://weatherxm.com/product/wb1200-wifi-d1/"><b>WeatherXM D1 Wi-Fi Station (<code>WS1001</code> + <code>WG1200</code>): $50 off with <code>MUSE50</code> → $149</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://muse.weatherxm.com"><b>⚡ Install at muse.weatherxm.com</b></a>
 </p>
 
 | [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) + a LAN camera | `WG1200` running Muse (`ota_1` dual-boot) |
@@ -60,7 +60,7 @@ Most AI hardware is a bare board on a USB cable, and most desk displays show sta
 | `lan.fetch` | Fetches a URL on your home network that the cloud VM can't reach, such as a camera snapshot or a local JSON API ([details](#cameras--home-network-devices-lanfetch)). |
 | `device.boot_weatherxm` | Reboots into stock WeatherXM. |
 
-On the screen, **swipe down** (or tap **Draw Weather Card**) for today's hourly forecast, picked by your own station: Muse treats the live readings as ground truth, fetches hourly forecasts for the station's GPS position (or Athens until a fix arrives) from several models, scores each against current conditions and draws the best fit as a `480×480` card in a random style (Ukiyo-e, Studio Ghibli, Art Deco, Synthwave, 16-bit RPG, Bauhaus and more), naming the models on it. Tell Muse your preferences once (*"my favourite provider is X, show the next 3 hours and tomorrow, in Ukiyo-e"*) and every swipe uses them instead of the defaults. To change the request itself without reflashing, edit the **Swipe-down card prompt** in the Web Flasher & Provisioner's setup tab (or send `>card.prompt=…` on the USB console, `card.prompt=…` over Companion BLE); `{weather}`, `{location}` and `{style}` are filled on the gateway. It's also a quick check that Muse is connected. The console has no mic, so one-tap actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) send your live weather with the request and stream Muse's answer on screen.
+On the screen, **swipe down** (or tap **Draw Weather Card**) for today's hourly forecast, picked by your own station: Muse treats the live readings as ground truth, fetches hourly forecasts for the station's GPS position (or Athens until a fix arrives) from several models, scores each against current conditions and draws the best fit as a `480×480` card in a random style (Ukiyo-e, Studio Ghibli, Art Deco, Synthwave, 16-bit RPG, Bauhaus and more), naming the models on it. Tell Muse your preferences once (*"my favourite provider is X, show the next 3 hours and tomorrow, in Ukiyo-e"*) and every swipe uses them instead of the defaults. To change the request itself without reflashing, edit the **Swipe-down card prompt** on tab 2 of [muse.weatherxm.com](https://muse.weatherxm.com) (or send `>card.prompt=…` on the USB console, `card.prompt=…` over Companion BLE); `{weather}`, `{location}` and `{style}` are filled on the gateway. It's also a quick check that Muse is connected. The console has no mic, so one-tap actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) send your live weather with the request and stream Muse's answer on screen.
 
 ---
 
@@ -96,26 +96,25 @@ Ask Muse something like *"fetch my camera's snapshot with lan.fetch and show it 
 
 ---
 
-## Install Muse on a `WG1200` (safe dual-boot)
+## Install Muse with [muse.weatherxm.com](https://muse.weatherxm.com)
 
-Muse goes into the second app slot (`ota_1`, `0x820000`) with its own NVS (`muse_nvs`, `0xF21000`). The Secure Boot V2 bootloader (`0x0`), certificates (`esp_secure_cert`, `0xD000`), WeatherXM NVS (`0xF000`), `factory` (`0x20000`), `ota_0` (`0x420000`) and SPIFFS (`0xC21000`) are never modified or erased.
+Open **[muse.weatherxm.com](https://muse.weatherxm.com)** in desktop **Chrome** or **Edge** and plug the `WG1200` in over USB-C. Nothing to install: the page talks to the gateway over **Web Serial** (flashing) and **Web Bluetooth** (setup), and relays the few `api.muse.ai` calls a browser can't make. Tab **1** installs Muse beside WeatherXM and switches between them; tab **2** pairs it with your Muse.
 
-### Web Flasher & Provisioner (`muse-flasher/`)
+Muse goes into the second app slot and its own NVS. Everything WeatherXM needs is never modified or erased:
 
-One page installs Muse beside WeatherXM, switches between them and sets Muse up. Open it in desktop **Chrome** or **Edge** and plug the `WG1200` in over USB-C; it talks to the gateway over **Web Serial** (flashing) and **Web Bluetooth** (setup), and a small Cloudflare Worker relays the `api.muse.ai` calls a browser can't make.
-
-| Flash region | Holds | The flasher |
+| Flash region | Holds | The site |
 |---|---|---|
-| `0x0` bootloader · `0xD000` certificates · `0xF000` NVS · `0x20000` `factory` | Secure Boot V2 and the station's WeatherXM identity | never writes it (blocked in the page) |
+| `0x0` bootloader · `0xD000` certificates · `0xF000` NVS · `0x20000` `factory` · `0xC21000` SPIFFS | Secure Boot V2 and the station's WeatherXM identity | never writes it (blocked in the page) |
 | `0x420000` `ota_0` | WeatherXM | writes a signed WeatherXM release, only if you pick one |
 | `0x820000` `ota_1` | Muse | writes the signed Muse image |
 | `0x13000` `otadata` | which slot boots | rewrites 8 KB to switch |
 | `0xC000` partition table · `0xF21000` `muse_nvs` | Muse's settings and tokens | adds `muse_nvs` once, keeping every WeatherXM partition |
 
-1. **Connect & inspect:** reads the partition table, `otadata` and each slot's app header.
-2. **Install or switch:** checks the image's SHA-256 and RSA-3072 signature, writes the slot, MD5-verifies it on the chip, then switches `otadata`. If the slot already holds that build, it only switches `otadata`.
-3. **SDK token:** after the reboot it sends `>sdk_token=mgst_…` over USB until Muse answers `@sdk_token ok`.
-4. **Pair & provision:** see [Set up Muse over Bluetooth](#set-up-muse-over-bluetooth).
+### 1. Flash
+
+1. **Connect** and pick **USB JTAG/serial debug unit** (the native port, about 20 s to flash). The page reads the partition table, `otadata` and each slot's firmware.
+2. **Paste your SDK token** (`mgst_…`, from [gadgets.muse.ai](https://gadgets.muse.ai/settings/sdk-tokens)) in the Muse card and click **Install & Boot Muse OS**. The page checks the image's SHA-256 and RSA-3072 signature, writes `ota_1`, verifies it on the chip and sets it to boot. If the slot already holds that build, it just switches.
+3. **After the reboot** it sends your token over USB until Muse answers `@sdk_token ok`.
 
 | Installing Muse into `ota_1` | The write guard and live flashing log |
 |:---:|:---:|
@@ -123,35 +122,19 @@ One page installs Muse beside WeatherXM, switches between them and sets Muse up.
 | **Wi-Fi, SDK token and 365-day device tokens** | **One-click provisioning and Muse's boot log** |
 | <img src=".github/images/muse-flasher-provisioner.webp" width="440" alt="Token and BLE setup tab: Wi-Fi SSID and password with Show and Remember, SDK token with Write via USB Serial, node ID, Muse VM fields, the DevTools token snippet with a Copy button, and Mint and Verify buttons"> | <img src=".github/images/muse-flasher-boot-log.webp" width="440" alt="The seven provisioning steps and action buttons above the UART log of Muse booting on the WG1200 with its SDK token set"> |
 
-Run it with `cd muse-flasher && npm install && npm run build && npm run preview` (http://localhost:8787). Pushes to `main` deploy it to Cloudflare Workers ([workflow](.github/workflows/muse-flasher-cloudflare.yml)); details in [`muse-flasher/README.md`](muse-flasher/README.md).
+### 2. Set up Muse over Bluetooth
 
-### Static web flasher (no install)
-
-Open **[weatherxm.github.io/muse-gadget-sdk](https://weatherxm.github.io/muse-gadget-sdk/)** in Chrome or Edge (or run `python3 esp32/tools/muse/muse_setup_server.py` for `http://localhost:8099/web-flasher/`):
-
-1. Paste your SDK token (`mgst_…`, 48 chars) from [gadgets.muse.ai](https://gadgets.muse.ai/settings/sdk-tokens).
-2. Pick **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)**, click **Connect & install**, and choose **USB JTAG/serial debug unit** (`303a:1001`, ~20 s). The CH340 **USB Serial** port (`1a86:7523`) works too, with paced writes.
-3. It writes only the partition table (`0xC000`, adds `muse_nvs`), `otadata` (`0x13000` → `ota_1`) and Muse (`0x820000`). Close the installer dialog and it sends your token over USB and reboots into Muse (`MuseGadget-XXXXXX`).
-
-From the command line, [`esp32/tools/wg1200_dualboot.sh`](esp32/tools/wg1200_dualboot.sh) backs up, builds (versioned from [`devices/wxm-wg1200.version`](esp32/devices/wxm-wg1200.version)) and installs:
-
-```bash
-./esp32/tools/wg1200_dualboot.sh backup /dev/cu.usbserial-1110
-WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh build
-WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh install /dev/cu.usbserial-1110
-```
-
-### Set up Muse over Bluetooth
-
-Both the Web Flasher & Provisioner (tab **2**) and the local provisioner at `http://localhost:8099/` (from `muse_setup_server.py`) run the same flow. A `muse.ai` web token (`s0:…`) expires in about an hour, so it's used once to mint a **365-day** device token pair (`access_token` + `refresh_token`) bound to the gateway's `homelink-xxxxxx` ID.
+On tab **2**. A `muse.ai` web token (`s0:…`) expires in about an hour, so it's used once to mint a **365-day** device token pair (`access_token` + `refresh_token`) bound to the gateway's `homelink-xxxxxx` ID.
 
 1. **Connect** over Web Bluetooth and pick `MuseGadget-XXXXXX` (swipe right on the screen first to turn Bluetooth on). The node ID fills in.
-2. **Fill** your 2.4 GHz Wi-Fi (tick **Remember Wi-Fi password** to skip it next time) and SDK token. Locally, the token can come from the git-ignored [`muse_setup.secrets.json`](esp32/tools/muse/muse_setup.secrets.example.json) or `MUSE_SDK_TOKEN`.
+2. **Fill** your 2.4 GHz Wi-Fi (tick **Remember Wi-Fi password** to skip it next time) and SDK token.
 3. **Get a web token:** copy the DevTools snippet, run it in the Console of a logged-in [muse.ai](https://muse.ai) tab (type `allow pasting` first if Chrome asks), and paste the result.
 4. **Mint** once per device: minting again for the same node ID most likely revokes the pair already on it. Leave **Muse VM server** empty (`hatch.metaaivm.com`); `muse.ai` is the account API, not the VM server.
 5. **1-Click Full Provision:** v5 pairing (P-256 ECDH + HKDF-SHA256 + AES-256-GCM), then **tap Confirm on the screen or briefly press the top button within 60 s**. It writes the VM and token to the Companion service (`muse_ble`) and sends Wi-Fi and the tokens in `provision_v2`. On `auth_ok` the gateway restarts and registers with your Muse VM.
 
 > **Already set up?** A provisioned gateway refuses new pairings (`error_pairing_unavailable`). Hold the top button **5 s and release** (or click **Unpair / Reset Home Link**), then run it again.
+
+The same tab edits the **swipe-down card prompt** stored on the gateway, over USB or Bluetooth, without reflashing.
 
 ### Back to WeatherXM
 
@@ -159,8 +142,7 @@ WeatherXM in `ota_0` and `factory` is untouched, so switching back takes seconds
 
 - **Touchscreen:** **Settings → WeatherXM**, then **Boot ota_0** (or **Boot factory**).
 - **Top button:** hold **10 s** (see below). Muse's setup is kept.
-- **Browser:** **Return WG1200 to WeatherXM** in either web flasher sends `>boot.weatherxm` over USB.
-- **Command line** (works even when Muse isn't running): `./esp32/tools/wg1200_dualboot.sh boot-weatherxm /dev/cu.usbserial-1110`, and `boot-muse` to come back without reflashing.
+- **muse.weatherxm.com:** **Install & Boot WeatherXM** on tab 1 (an instant switch when it's already installed), or **Return WG1200 to WeatherXM (USB)** on tab 2 while Muse runs.
 
 ### Top button
 
@@ -169,9 +151,11 @@ WeatherXM in `ota_0` and `factory` is untouched, so switching back takes seconds
 | Short press | Sleep / wake the display (double press: toggle BLE phone setup); during pairing, confirms it |
 | 1.5 s | Beep, and the screen shows `HOLD 5S: RESET MUSE / 10S: WEATHERXM` (let go to cancel) |
 | 5 s, then release | **Resets Muse**: unpairs Link, forgets Wi-Fi, clears the Muse token and VM, and restarts ready for 1-click provisioning |
-| 10 s | **Reboots into stock WeatherXM**, keeping Muse's setup for `boot-muse` later |
+| 10 s | **Reboots into stock WeatherXM**, keeping Muse's setup for switching back later |
 
 The reset waits for the release, so holding on to 10 s never resets Muse.
+
+Building the firmware yourself or flashing from the command line: see the [Hardware & Dual-Boot Guide](esp32/devices/wxm-wg1200.md). The site's source is in [`muse-flasher/`](muse-flasher/).
 
 ---
 
