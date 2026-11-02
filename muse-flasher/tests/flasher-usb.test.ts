@@ -79,7 +79,7 @@ describe('READ_FLASH over the esptool-js stub', () => {
     expect(Array.from(out)).toEqual(Array.from(data));
     expect(writes.map((w) => w[0])).toEqual([4, 8]); // acks carry the running total
     expect(queue).toHaveLength(0); // the digest was read, not left for the next command
-    expect(timeouts.slice(0, 2)).toEqual([10000, 10000]); // not esptool-js's 100 s
+    expect(timeouts.slice(0, 2)).toEqual([3000, 3000]); // not esptool-js's 100 s
   });
 });
 

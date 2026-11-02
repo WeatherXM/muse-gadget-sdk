@@ -285,10 +285,11 @@ export function patchEsploaderRunStub(): void {
 patchEsploaderRunStub();
 
 // esptool-js waits up to 100 s for each READ_FLASH packet, so a gateway that
-// stops answering stalls the page for minutes. Its stub also follows the data
+// stops answering stalls the page for minutes. A 4 KB packet needs about
+// 0.4 s even at 115200 baud, so 3 s is plenty. Its stub also follows the data
 // with a 16-byte MD5 of it, which esptool.py reads and esptool-js 0.7 leaves in
 // the stream; read it too, so it can't be taken for the next command's reply.
-const READ_FLASH_PACKET_TIMEOUT_MS = 10000;
+const READ_FLASH_PACKET_TIMEOUT_MS = 3000;
 const READ_FLASH_DIGEST_TIMEOUT_MS = 2000;
 let isReadFlashPatched = false;
 
@@ -304,8 +305,8 @@ export function patchEsploaderReadFlash(): void {
   ): Promise<Uint8Array> {
     let pkt = this._appendArray(this._intToByteArray(addr), this._intToByteArray(size));
     pkt = this._appendArray(pkt, this._intToByteArray(0x1000));
-    // Packets the stub may send ahead of our acks: 64, as esptool.py uses
-    // (esptool-js asks for 1024).
+    // Unacked bytes the stub may send: 64, as esptool.py uses (esptool-js asks
+    // for 1024). Both are below one 4 KB block, so it sends one block per ack.
     pkt = this._appendArray(pkt, this._intToByteArray(64));
     const res = await this.checkCommand('read flash', this.ESP_READ_FLASH, pkt);
     if (res != 0) {
