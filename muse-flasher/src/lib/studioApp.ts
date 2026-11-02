@@ -33,6 +33,7 @@ export function initWg1200Studio(): void {
   const controller = new FlasherController();
   let provisioner: ProvisionerApi | null = null;
   let lastUsbMac = '';
+  let wasOperating = false;
   let logLines: string[] = [];
 
   const appendLog = (level: BleLogLevel, formattedLine: string) => {
@@ -392,6 +393,18 @@ export function initWg1200Studio(): void {
     } else {
       progressPanel?.classList.add('hidden');
     }
+
+    // While a write or switch runs, fold the firmware cards away so the
+    // progress bar and the log below it fit on one screen.
+    const operating =
+      state.stage === 'flashing' || state.stage === 'verifying' || state.stage === 'rebooting';
+    el('firmware-cards')?.classList.toggle('hidden', operating);
+    if (operating && !wasOperating) {
+      const logDetails = el<HTMLDetailsElement>('technical-log-details');
+      if (logDetails) logDetails.open = true;
+      progressPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    wasOperating = operating;
 
     // Post-flash completion instructions
     if (state.stage === 'complete') {
