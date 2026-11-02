@@ -16,22 +16,22 @@ limitations under the License.
 
 # Give Your AI Agent Eyes on the Sky & a Rooftop Weather Station — Muse Gadget SDK for WeatherXM D1 (`WG1200`)
 
-> WeatherXM's fork of [Meta's Muse Gadgets SDK](https://github.com/facebookincubator/muse-gadget-sdk), porting it to the WeatherXM D1 gateway. The upstream README follows [below](#about-the-muse-gadgets-sdk-upstream).
+> WeatherXM's fork of [Meta's Muse Gadgets SDK](https://github.com/facebookincubator/muse-gadget-sdk), ported to the WeatherXM D1 gateway. The upstream README follows [below](#about-the-muse-gadgets-sdk-upstream).
 
 <p align="center">
   <b>Most AI agents can tell you the forecast. This one looks at the sky outside your window—and measures the actual weather on your roof.</b><br>
-  Give Meta's open-source Muse agent live Sub-GHz LoRa rooftop sensors (<code>sensors.read</code>), local sky-camera snapshots without port forwarding (<code>lan.fetch</code>), and a <code>480×480</code> generative canvas (<code>display.draw_file</code>)—in a reversible dual-boot (<code>ota_1</code>) that leaves your stock WeatherXM OS untouched.<br>
-  Built for the <a href="https://weatherxm.com/product/wb1200-wifi-d1/"><b>WeatherXM D1 Wi-Fi Station (<code>WS1001</code> + <code>WG1200</code> — $50 off for Muse builders with code <code>MUSE50</code> → $149)</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://weatherxm.github.io/muse-gadget-sdk/"><b>⚡ 1-Click Web Flasher</b></a>
+  Muse gets live rooftop sensors (<code>sensors.read</code>), sky-camera snapshots from your LAN without port forwarding (<code>lan.fetch</code>) and a <code>480×480</code> canvas (<code>display.draw_file</code>), in a reversible dual-boot (<code>ota_1</code>) that leaves stock WeatherXM untouched.<br>
+  <a href="https://weatherxm.com/product/wb1200-wifi-d1/"><b>WeatherXM D1 Wi-Fi Station (<code>WS1001</code> + <code>WG1200</code>): $50 off with <code>MUSE50</code> → $149</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://weatherxm.github.io/muse-gadget-sdk/"><b>⚡ 1-Click Web Flasher</b></a>
 </p>
 
-| [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) + a LAN camera                                                                                                         | `WG1200` Running Muse Gadget OS (`ota_1` Dual-Boot)                                                                                                                                                                     |
-|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station-camera.jpg" width="410" alt="WeatherXM D1 outdoor solar station and WG1200 4-inch touchscreen gateway, with a Sonoff IP camera running Thingino"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM">                                                                            |
-| Solar-powered 8-sensor outdoor array (`WS1001` / `WS1300`) transmitting every ~20s over private Sub-GHz LoRa P2P (up to 1 km) to the indoor `WG1200` 4.0" touchscreen console. Add any camera with an HTTP snapshot URL on the same Wi-Fi, here a Sonoff running [Thingino](https://github.com/themactep/thingino-firmware). | Paired over an encrypted Noise session to the Muse VM—answering live weather queries (`sensors.read`), fetching camera snapshots from the LAN (`lan.fetch`), and rendering generative `480×480` weather cards on swipe. |
+| [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) + a LAN camera | `WG1200` running Muse (`ota_1` dual-boot) |
+|:---:|:---:|
+| <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station-camera.jpg" width="410" alt="WeatherXM D1 outdoor solar station and WG1200 4-inch touchscreen gateway, with a Sonoff IP camera running Thingino"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM"> |
+| A solar 8-sensor array (`WS1001` / `WS1300`) reports every ~20 s over Sub-GHz LoRa (up to 1 km) to the 4" `WG1200` console. Any camera with an HTTP snapshot URL works, here a Sonoff on [Thingino](https://github.com/themactep/thingino-firmware). | Paired to the Muse VM over an encrypted Noise session: it answers weather questions (`sensors.read`), fetches camera frames (`lan.fetch`) and draws `480×480` cards. |
 | <img src=".github/images/sky-camera-frame-480.jpg" width="480" alt="Rooftop sky camera frame over Athens, 1 November 2026 16:56: broken cumulus with blue gaps and low sun, weather station masts in the foreground"> | <img src=".github/images/wg1200-sky-frame.jpg" width="410" alt="The same sky camera frame drawn on the WG1200 screen by Muse with display.draw_file"> |
-| **What Muse sees:** the rooftop camera's 1920×1080 frame, fetched by Muse through the `WG1200` (`lan.fetch`, about 150 KB in ~200 ms) and analysed in its VM next to the station's wind, rain and irradiance readings. | **And sends back:** the same frame drawn on the `WG1200` with `display.draw_file`. The camera never leaves the home network and no ports are opened. |
+| **What Muse sees:** the rooftop camera's 1920×1080 frame, fetched through the `WG1200` (~150 KB in ~200 ms) and analysed next to wind, rain and irradiance. | **What it sends back:** the same frame, drawn with `display.draw_file`. The camera never leaves the home network and no ports are opened. |
 | <img src=".github/images/wg1200-card-cyberpunk.jpg" width="410" alt="The WG1200 on a desk showing a cyberpunk-neon Athens weather card Muse generated: 21.6 °C, humidity 64%, pressure 1009 hPa, wind, rain and UV"> | <img src=".github/images/wg1200-card-diorama-480.jpg" width="410" alt="A 480x480 isometric-diorama Athens weather card Muse generated: a rooftop weather station beside the Acropolis, 18.4 °C, humidity 83%, pressure 1009 hPa"> |
-| **Draws whatever it wants:** the `480×480` TFT is Muse's canvas, not a fixed firmware screen. Muse composes images on the fly in its VM and draws them with `display.draw_file` or `display.draw_url`: weather cards from the station's live readings in any style, a camera frame, a chart, an alert. | **Cyberpunk neon, isometric diorama, or anything else:** each card is generated on demand from the latest `sensors.read` values (temperature, humidity, pressure, wind, rain, UV). Swipe down on the screen for a new one, or ask Muse for a style. |
+| **The screen is Muse's canvas:** cards, frames, charts or alerts it composes in its VM and draws with `display.draw_file` / `display.draw_url`. | **Any style:** each card is generated from the latest `sensors.read` values. Swipe down for a new one, or ask Muse for a style. |
 
 <p align="center">
   <img src=".github/images/wg1200-weather-cards-collage.jpeg" width="900" alt="Unique AI-generated 480x480 weather cards rendered on the WeatherXM WG1200 from live WS1001/WS1300 LoRa weather station telemetry"><br>
@@ -40,233 +40,138 @@ limitations under the License.
 
 ---
 
-## Why Give an AI Agent a Rooftop Weather Station & a Sky Camera?
+## Why a weather station?
 
-Most AI hardware prototypes are bare hobbyist PCBs dangling from a USB cable with no real-world sensors, while most commercial desk displays cost $180+ just to show static web widgets. Porting the Muse ESP32 SDK to the **[WeatherXM D1 (`WG1200`)](https://weatherxm.com/product/wb1200-wifi-d1/)** *(use code **`MUSE50`** for $50 off → **$149**)* unlocks four capabilities in a single desktop console:
+Most AI hardware is a bare board on a USB cable, and most desk displays show static widgets. The `WG1200` gives Muse four things in one console:
 
-1. **Physical Ground Truth + Eyes on Your Home Network (`sensors.read` + `lan.fetch`):**
-   Cloud AI agents are typically blind to the actual microclimate outside your window—relying on coarse city forecasts while a 45 km/h gust hits your balcony or rain starts on the patio. The `WG1200` gives the agent live roof telemetry (`sensors.read`), finds the devices on your Wi-Fi (`device.discover`), and reads from them on its behalf (`lan.fetch`): a camera's view of the sky, a solar inverter's output, a smart-home hub's state. See [Eyes on the Sky](#eyes-on-the-sky-lanfetch--rooftop-ground-truth-sensorsread).
-2. **The Screen is a `480×480` Canvas, Not a Static Dashboard (`display.draw_file`):**
-   Instead of hardcoding every screen in firmware, the `WG1200` exposes dynamic `480×480` image rendering (`display.draw_file`, `display.draw_url`) and dismissible alert cards with audible buzzer chimes (`wg1200.notify`). Swipe down (or ask Muse), and it turns your exact live station readings into bespoke `480×480` artwork—Cyberpunk Neon, Ukiyo-e, Studio Ghibli, an isometric Acropolis rooftop diorama—or live camera snapshots and storm alerts on the fly.
-3. **Reversible Dual-Boot (`ota_1` — Stock WeatherXM Firmware Preserved):**
-   Rather than sacrificing an existing weather station to experiment with AI firmware, this port installs into the secondary `ota_1` firmware slot (`0x820000`) with an isolated `muse_nvs` partition. Your stock WeatherXM firmware, station identity, hardware certificates, and NVS remain untouched—hold the top button for 10 seconds (or tap `Settings → WeatherXM`) to reboot right back. Works on both the **$199 Network Edition** (`$149` with `MUSE50`) and the **$299 Open Edition** (`$249` with `MUSE50`).
-4. **Long-Range Sub-GHz LoRa & Multi-Hop Meshtastic (`100s of km`) Meet Personal AI:**
-   Unlike Wi-Fi-only desk gadgets, the `WG1200` includes a built-in Sub-GHz LoRa radio (`SX1262`) alongside Wi-Fi and BLE. It receives solar-powered outdoor weather stations (`WS1001` and `WS1300`) point-to-point up to ~1 km away—and with **Meshtastic / MeshCore multi-hop LoRa mesh** (see **[WeatherXM D2 Mesh on Crowd Supply](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**), it lays the foundation for relaying outdoor weather telemetry and agent-to-agent messages across **hundreds of kilometers** off-grid directly into personal AI workflows.
+- **Ground truth and eyes on your LAN.** Live rooftop telemetry (`sensors.read`), the devices on your Wi-Fi (`device.discover`), and fetches from them (`lan.fetch`): a camera's view of the sky, an inverter's output, a hub's state. See [Eyes on the sky](#eyes-on-the-sky-cameras--rooftop-sensors).
+- **A `480×480` canvas, not a dashboard.** Muse draws whatever it composes (`display.draw_file`, `display.draw_url`) and pushes alert cards with a chime (`wg1200.notify`).
+- **A reversible dual-boot.** Muse installs into `ota_1` (`0x820000`) with its own `muse_nvs`; WeatherXM firmware, station identity, certificates and NVS are never touched. Hold the top button 10 s to go back. Fits the **$199 Network Edition** ($149 with `MUSE50`) and the **$299 Open Edition** ($249).
+- **Sub-GHz LoRa.** The built-in `SX1262` receives `WS1001` / `WS1300` stations up to ~1 km away; with Meshtastic / MeshCore multi-hop mesh ([WeatherXM D2 Mesh](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)), telemetry and agent messages can travel hundreds of km off-grid.
 
----
+### What Muse can do on the `WG1200` (`wxm-wg1200`)
 
-## Eyes on the Sky (`lan.fetch`) + Rooftop Ground Truth (`sensors.read`)
+| Command | What it does |
+|---|---|
+| `sensors.read` | Outdoor temperature, humidity, wind speed, gust and direction, UV, irradiance (`W/m²`), light, rain rate (`mm/h`) and daily rain (`mm`, kept across reboots), plus indoor pressure (`hPa`). Locks onto your own station so neighbours' never mix in. |
+| `display.draw_file` · `display.draw_url` · `display.show_animation` | Draws `480×480` cards, charts or images on demand. |
+| `wg1200.notify` | Pushes a dismissible alert card, optionally with a buzzer chime. |
+| `device.discover` | Finds devices on your Wi-Fi (ARP, mDNS, SSDP, WS-Discovery and more). |
+| `lan.fetch` | Fetches a URL on your home network that the cloud VM can't reach, such as a camera snapshot or a local JSON API ([details](#cameras--home-network-devices-lanfetch)). |
+| `device.boot_weatherxm` | Reboots into stock WeatherXM. |
 
-### 1. Teaching a Cloud Agent to See Your Home LAN (No Port Forwarding, No Pi)
-
-A cloud AI agent normally can't see anything on your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor's camera cloud, or a Raspberry Pi bridge. With `lan.fetch`, the `WG1200` does the fetching itself. Muse asks the gateway for `http://<camera>/snapshot.jpg`, the ESP32-S3 GETs it on the LAN (~200 ms), verifies its SHA-256 digest in PSRAM, and returns the JPEG over the encrypted session it already holds to Muse's VM. No inbound ports are opened and no Pi is required.
-
-What makes that more than a webcam viewer is where it sits: the same device holds **time-aligned, co-located ground truth** from the rooftop station. One agent turn combines:
-
-- a frame of the sky or garden from a local IP camera with an HTTP snapshot URL (tested with Sonoff/Thingino, plus Hikvision, Dahua, Reolink, Axis, ESP32-CAM, or RTSP cameras through go2rtc), and
-- the outdoor readings from the station's latest LoRa packet every ~20s: wind speed, gust and direction, rain rate, solar irradiance (`W/m²`), UV, temperature, humidity and indoor `BMP390` barometric pressure (`sensors.read`).
-
-### 2. Multi-Modal Ground Truth: Sky Frames + Sub-GHz LoRa Telemetry
-
-Muse's VM runs code and vision models on every frame alongside live rooftop telemetry:
-
-- **Cross-checked conditions:** "overcast" from the sky frame against the `W/m²` solar irradiance drop, "raining" against rain rate and drops on the lens, fog or low visibility against humidity and dewpoint spread.
-- **Events sensors alone miss:** a storm cell building on the horizon, virga, snow on the ground, hail, smoke plumes, or a shaded/obstructed sensor.
-- **Self-labelled physical dataset:** every sky frame paired with co-located `W/m²`, pressure, wind and rain readings becomes grounded training and evaluation data.
-- **Rendered straight back on the desk:** a `480×480` card (`display.draw_file`), a sky-frame overlay, an alert with a buzzer chime (`wg1200.notify`), or a reply on your phone.
-
-### 3. Next Frontier: An Agentic `SETI@home` for Weather Nowcasting (Graded by Physical Sensors)
-
-Think of it as an **agentic `SETI@home` for hyperlocal weather nowcasting**—where instead of just donating idle CPU cycles, home AI agents contribute **live rooftop telemetry, calibrated sky-camera views, and peer-to-peer coordination**.
-
-What happens when WeatherXM stations—from neighboring rooftops (~1 km apart) to regional nodes linked over **multi-hop Meshtastic / MeshCore LoRa mesh across 100s of km** (**[WeatherXM D2 Mesh](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)**)—each run their own independent Muse agent, discover each other, and coordinate?
-
-- **Signed rendezvous & mesh discovery:** station agents find each other (over the internet or off-grid via multi-hop LoRa mesh) and advertise what they can observe—camera bearing/FOV, live sensor channels, and scored forecast history—without a central planner.
-- **Peer-to-peer agent tasking:** *"Capture the sky at T+90s, signed—I'll do the same for you."* Synchronized sky views from neighboring rooftops plus wind vectors yield stereo cloud-base height, optical flow, and a **shadow-arrival countdown** drawn directly onto the neighboring `WG1200` screen, while upwind mesh nodes dozens to hundreds of kilometers away provide early storm-front arrival alerts.
-- **Predictions graded by the physical world:** the hardest problem in AI agents is grounded evaluation. Here, every short-term prediction is automatically scored against physical ground truth: *did the rooftop solar irradiance (`W/m²`) actually drop at the predicted minute? Did rain onset hit when forecasted?* "Insufficient geometry" is a valid answer, and error bars get published next to the wins—turning verified hyperlocal nowcasts into an auditable service other agents and solar PV systems can subscribe to.
-
-### Today vs next
-
-| Works today on the `WG1200`                                                                  | Next steps                                                                                  |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Muse fetches a camera frame through the gateway (`lan.fetch`), tested with a Thingino camera | Agents discovering and talking to each other (**rendezvous**)                               |
-| Live station telemetry from the same device (`sensors.read`)                                 | Signed frames and readings, so other agents can trust where data came from                  |
-| Analysis in Muse's VM, results drawn on the gateway's screen                                 | Multi-camera cloud tracking, stereo cloud height and the **weather nowcast service** itself |
-
-See [Cameras & home-network devices](#cameras--home-network-devices-lanfetch) for how to call `lan.fetch`.
+On the screen, **swipe down** (or tap **Draw Weather Card**) for a one-off `480×480` card from your live weather in a random style: Ukiyo-e, Studio Ghibli, Art Deco, Synthwave, 16-bit RPG, Bauhaus and more. It's also a quick check that Muse is connected. The console has no mic, so one-tap actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) send your live weather with the request and stream Muse's answer on screen.
 
 ---
 
-## Highlights  (`wxm-wg1200`)
+## Eyes on the sky: cameras + rooftop sensors
 
-- **Live Outdoor Weather Station + Rain Tracking:**
-  - Receives real-time outdoor temperature, humidity, wind speed, wind gusts, wind direction, UV index, solar irradiance, and light directly from your rooftop station (`WS1001` / `WS1300`), paired with indoor barometric pressure (`hPa`).
-  - Tracks live **Rain Rate (`mm/h`)** and **Daily Rain Accumulation (`mm`)** across reboots, while automatically locking onto your own outdoor station so neighboring stations never mix into your data.
-- **Swipe-Down Generative `480×480` Weather Cards:**
-  - **Swipe down anywhere on the main Muse face** (or over an active card, or tap **Draw Weather Card** in `Settings → Weather`) to turn your live outdoor weather into a one-of-a-kind `480×480` artwork. This is a quick check Muse connection is working.
-  - Each swipe pairs your exact outdoor conditions with a randomized visual style (*Ukiyo-e woodblock*, *Studio Ghibli anime*, *Art Deco*, *Synthwave*, *16-bit pixel RPG*, *Bauhaus poster*, *Watercolor field notes*, *Nautical chart*, and more) and streams the finished card straight to the screen.
-- **No-Mic Touchscreen Quick Actions & Live On-Screen Replies:**
-  - Built for a mic-less desk console: one-tap touch actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) automatically include your live outdoor weather and send the request to Muse.
-  - Displays your prompt on-screen while Muse is thinking, then streams Muse's answer right across the `480×480` display.
-- **2-Way Muse ↔ `WG1200` Smart-Home & Display Tools:**
-  - `sensors.read` — Lets you ask Muse about your exact rooftop weather, wind gusts, or rain from your phone or laptop at any time.
-  - `display.draw_file` / `display.draw_url` / `display.show_animation` — Draws custom `480×480` cards, charts, or images onto the screen on demand.
-  - `wg1200.notify` — Pushes a dismissible alert card onto the screen with an optional audible buzzer chime.
-  - `device.discover` — Discovers devices on your home Wi-Fi (ARP, mDNS, SSDP, WS-Discovery and more), so Muse knows what's there.
-  - `lan.fetch` — Fetches any URL on your home network that Muse's cloud VM can't reach, such as an IP camera's JPEG snapshot or a local device's JSON API, and hands the bytes to Muse for cloud analytics (see [Cameras & home-network devices](#cameras--home-network-devices-lanfetch)).
-  - `device.boot_weatherxm` — Reboots the console back into stock WeatherXM OS whenever you want.
-- **One Top Button, Two Long Holds:** hold **5 s and release** to reset Muse for a fresh 1-click setup, or keep holding to **10 s** to reboot into stock WeatherXM with Muse's setup kept (see [Top button](#top-button)).
-- **1-Click Browser Web Flasher, Web Bluetooth Provisioner & Non-Destructive Dual-Boot:**
-  - Includes [`muse-flasher/`](muse-flasher/) — an Astro + Cloudflare Workers all-in-one **Dual-Boot Studio & BLE Provisioner** that switches between WeatherXM Official (`v0.8.39`, `v0.8.34`, `v0.6.2`) and Muse Gadget OS (`ota_1`), injects SDK tokens over USB, mints 365-day device tokens via `api.muse.ai`, and runs Web Bluetooth Dual-GATT (`Home Link` + `Companion`) provisioning in a single web app.
-  - Also includes the standalone static **Web Flasher** ([`web-flasher/`](web-flasher/)) and local **Full Web Bluetooth Provisioner** ([`esp32/tools/muse/muse_full_setup.html`](esp32/tools/muse/muse_full_setup.html)). Full hardware & protocol reference in **[`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md)**.
+A cloud agent can't see your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor cloud or a Raspberry Pi. With `lan.fetch` the `WG1200` fetches for it. Muse asks for `http://<camera>/snapshot.jpg`; the ESP32-S3 GETs it on the LAN (~200 ms), checks its SHA-256 in PSRAM and returns it over the encrypted session it already holds.
+
+The same device holds time-aligned ground truth from the roof, so one turn can pair a sky frame with the latest LoRa readings to:
+
+- **cross-check conditions:** "overcast" against an irradiance drop, "raining" against rain rate, fog against humidity and dewpoint spread;
+- **catch what sensors miss:** a storm cell on the horizon, virga, snow, hail, smoke, a shaded sensor;
+- **build a self-labelled dataset:** every frame paired with co-located `W/m²`, pressure, wind and rain;
+- **answer on the desk:** a card (`display.draw_file`), an overlay, a chime alert (`wg1200.notify`) or a reply on your phone.
+
+**Next: an agentic `SETI@home` for nowcasting.** Stations on neighbouring rooftops (~1 km apart), and regional nodes linked over multi-hop LoRa mesh, each run their own Muse agent. They find each other through signed rendezvous and task each other (*"capture the sky at T+90 s, signed"*) for stereo cloud-base height, optical flow and a shadow-arrival countdown on the neighbour's screen. Every short-term prediction is graded by the physical sensors (did irradiance drop at the predicted minute? did rain start on time?), and the scored nowcasts become a service other agents and solar PV systems can subscribe to.
+
+| Works today | Next |
+|---|---|
+| Camera frames through the gateway (`lan.fetch`), tested with Thingino | Agents discovering and talking to each other (rendezvous) |
+| Live station telemetry from the same device (`sensors.read`) | Signed frames and readings, so other agents can trust their source |
+| Analysis in Muse's VM, results drawn on the gateway's screen | Multi-camera cloud tracking, stereo cloud height, the nowcast service |
+
+### Cameras & home-network devices (`lan.fetch`)
+
+Ask Muse something like *"fetch my camera's snapshot with lan.fetch and show it with display.draw_file"*. The call is `{"url": "http://192.168.1.20/x/ch1.jpg?token=…"}`.
+
+- **Cameras:** any HTTP snapshot URL: Thingino (`/x/ch1.jpg?token=…`), Hikvision (`/ISAPI/Streaming/channels/101/picture`), Dahua and Amcrest (`/cgi-bin/snapshot.cgi`), Reolink (`/cgi-bin/api.cgi?cmd=Snap&channel=0`), Axis (`/axis-cgi/jpg/image.cgi`), ESP32-CAM (`/capture`). RTSP-only and cloud cameras work through [go2rtc](https://github.com/AlexxIT/go2rtc) (`/api/frame.jpeg?src=<cam>`); local JSON APIs work too.
+- **Logins:** a token in the query, `http://user:pass@host/…`, or `username` / `password` (Basic or Digest). Never logged or returned; results show `http://***@host/path?***`.
+- **Home network only:** the host must be, or resolve to, a private IPv4 address (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`).
+- **Returns** `bytes`, `sha256`, `content_type`, `jpeg`, `http_status`, `fetch_ms`, and either a file on your VM (`delivery: "file"`, via `POST /fs/write`) or, when the VM refuses that to the gadget's token as it does today, `data_base64` (`delivery: "inline"`, up to 512 KB).
+- **Options:** `max_bytes` (default 1 MiB, max 2 MiB), `timeout_ms` (default 15 s), `path` on the VM, `delivery` (`auto`, `file`, `inline`).
+- **Bench test:** `>lan.fetch {"url":"http://…"}` on the USB console prints `@lan.fetch {…}`.
 
 ---
 
-## Web Flasher & Provisioner (`muse-flasher/`)
+## Install Muse on a `WG1200` (safe dual-boot)
 
-One browser page installs Muse next to WeatherXM, switches between the two, and sets Muse up: no toolchain and no Python server. Plug the `WG1200` in over USB-C, open the page in desktop **Chrome** or **Edge**, and it talks to the gateway directly, over **Web Serial** for flashing and **Web Bluetooth** for setup. A small Cloudflare Worker serves the page and relays the few `api.muse.ai` calls a browser can't make on its own.
+Muse goes into the second app slot (`ota_1`, `0x820000`) with its own NVS (`muse_nvs`, `0xF21000`). The Secure Boot V2 bootloader (`0x0`), certificates (`esp_secure_cert`, `0xD000`), WeatherXM NVS (`0xF000`), `factory` (`0x20000`), `ota_0` (`0x420000`) and SPIFFS (`0xC21000`) are never modified or erased.
 
-### How it works
+### Web Flasher & Provisioner (`muse-flasher/`)
 
-The `WG1200`'s 16 MB flash already has two app slots and a small boot selector, so Muse lives **beside** WeatherXM instead of replacing it:
+One page installs Muse beside WeatherXM, switches between them and sets Muse up. Open it in desktop **Chrome** or **Edge** and plug the `WG1200` in over USB-C; it talks to the gateway over **Web Serial** (flashing) and **Web Bluetooth** (setup), and a small Cloudflare Worker relays the `api.muse.ai` calls a browser can't make.
 
-| Flash region | What's there | What the flasher does |
+| Flash region | Holds | The flasher |
 |---|---|---|
-| `0x0` bootloader · `0xD000` certificates · `0xF000` NVS · `0x20000` `factory` | Secure Boot V2 bootloader and the station's WeatherXM identity | Never writes it: a write guard in the page blocks these ranges |
-| `0x420000` `ota_0` | WeatherXM firmware | Writes a signed WeatherXM release only if you pick one |
-| `0x820000` `ota_1` | Muse Gadget OS | Writes the signed Muse image |
-| `0x13000` `otadata` | Which slot boots | Rewrites these 8 KB to switch between WeatherXM and Muse |
-| `0xC000` partition table · `0xF21000` `muse_nvs` | Muse's own settings and tokens | Adds `muse_nvs` once, keeping every WeatherXM partition as it was |
+| `0x0` bootloader · `0xD000` certificates · `0xF000` NVS · `0x20000` `factory` | Secure Boot V2 and the station's WeatherXM identity | never writes it (blocked in the page) |
+| `0x420000` `ota_0` | WeatherXM | writes a signed WeatherXM release, only if you pick one |
+| `0x820000` `ota_1` | Muse | writes the signed Muse image |
+| `0x13000` `otadata` | which slot boots | rewrites 8 KB to switch |
+| `0xC000` partition table · `0xF21000` `muse_nvs` | Muse's settings and tokens | adds `muse_nvs` once, keeping every WeatherXM partition |
 
-1. **Connect & inspect.** Reads the partition table, `otadata` and each slot's app header, so you see what's installed and which slot boots.
-2. **Install or switch.** Checks the image's SHA-256 and its RSA-3072 Secure Boot V2 signature, writes the slot, verifies the whole slot with an on-chip MD5, and only then switches `otadata`. If the slot already holds that exact build, it just switches `otadata`, in a few seconds.
-3. **SDK token.** After the reboot, it sends `>sdk_token=mgst_…` over the USB console until Muse answers `@sdk_token ok`.
-4. **Pair & provision over Bluetooth.** Mints a 365-day device token pair from your `muse.ai` web token (a DevTools snippet with a **Copy** button fetches it), pairs Home Link (P-256 ECDH + AES-256-GCM, confirmed on the touchscreen), then sends Wi-Fi, your Muse VM and the tokens in `provision_v2`. Tick **Remember Wi-Fi password** to skip typing it next time.
-
-Going back to WeatherXM is the same `otadata` switch, from the page, the touchscreen or the [top button](#top-button). Your tokens stay in your browser: the Worker passes the mint and VM-lookup calls through to `api.muse.ai` and stores nothing.
+1. **Connect & inspect:** reads the partition table, `otadata` and each slot's app header.
+2. **Install or switch:** checks the image's SHA-256 and RSA-3072 signature, writes the slot, MD5-verifies it on the chip, then switches `otadata`. If the slot already holds that build, it only switches `otadata`.
+3. **SDK token:** after the reboot it sends `>sdk_token=mgst_…` over USB until Muse answers `@sdk_token ok`.
+4. **Pair & provision:** see [Set up Muse over Bluetooth](#set-up-muse-over-bluetooth).
 
 | Installing Muse into `ota_1` | The write guard and live flashing log |
 |:---:|:---:|
 | <img src=".github/images/muse-flasher-install.webp" width="440" alt="Muse × WeatherXM WG1200 Studio flashing Muse Gadget OS into ota_1 at 15%, with the Muse and WeatherXM firmware cards and the SDK token field below"> | <img src=".github/images/muse-flasher-flashing-log.webp" width="440" alt="The hardware safety guard summary above the live esptool log writing Muse into ota_1"> |
-| Muse is written to `ota_1` while WeatherXM stays in `ota_0`. The SDK token typed here is sent to Muse as soon as it boots. | The page refuses writes outside the OTA slots and `otadata`, and streams `esptool-js` progress as it writes. |
-| **Setup: Wi-Fi, SDK token and 365-day device tokens** | **One-click provisioning and Muse's boot log** |
+| **Wi-Fi, SDK token and 365-day device tokens** | **One-click provisioning and Muse's boot log** |
 | <img src=".github/images/muse-flasher-provisioner.webp" width="440" alt="Token and BLE setup tab: Wi-Fi SSID and password with Show and Remember, SDK token with Write via USB Serial, node ID, Muse VM fields, the DevTools token snippet with a Copy button, and Mint and Verify buttons"> | <img src=".github/images/muse-flasher-boot-log.webp" width="440" alt="The seven provisioning steps and action buttons above the UART log of Muse booting on the WG1200 with its SDK token set"> |
-| The node ID is filled from the USB or Bluetooth connection, and the form is remembered in this browser. | Seven steps from ECDH hello to Wi-Fi & Auth OK, above the console log of Muse booting with its SDK token stored. |
 
-### Run it
+Run it with `cd muse-flasher && npm install && npm run build && npm run preview` (http://localhost:8787). Pushes to `main` deploy it to Cloudflare Workers ([workflow](.github/workflows/muse-flasher-cloudflare.yml)); details in [`muse-flasher/README.md`](muse-flasher/README.md).
 
-```bash
-cd muse-flasher
-npm install
-npm run build && npm run preview   # http://localhost:8787
-```
+### Static web flasher (no install)
 
-Pushes to `main` that touch `muse-flasher/` deploy it to Cloudflare Workers ([workflow](.github/workflows/muse-flasher-cloudflare.yml)). Details, including the `/api` contract, are in [`muse-flasher/README.md`](muse-flasher/README.md).
+Open **[weatherxm.github.io/muse-gadget-sdk](https://weatherxm.github.io/muse-gadget-sdk/)** in Chrome or Edge (or run `python3 esp32/tools/muse/muse_setup_server.py` for `http://localhost:8099/web-flasher/`):
 
----
+1. Paste your SDK token (`mgst_…`, 48 chars) from [gadgets.muse.ai](https://gadgets.muse.ai/settings/sdk-tokens).
+2. Pick **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)**, click **Connect & install**, and choose **USB JTAG/serial debug unit** (`303a:1001`, ~20 s). The CH340 **USB Serial** port (`1a86:7523`) works too, with paced writes.
+3. It writes only the partition table (`0xC000`, adds `muse_nvs`), `otadata` (`0x13000` → `ota_1`) and Muse (`0x820000`). Close the installer dialog and it sends your token over USB and reboots into Muse (`MuseGadget-XXXXXX`).
 
-## Quick Start: Flash & Provision a New WeatherXM `WG1200` (Safe Dual-Boot)
-
-The `WG1200` dual-boot layout installs Muse into the secondary `ota_1` slot (`0x820000`) and uses an isolated NVS partition (`muse_nvs` at `0xF21000`). **Your original WeatherXM firmware (`factory` at `0x20000` and `ota_0` at `0x420000`), Secure Boot V2 bootloader (`0x0`), hardware certificates (`esp_secure_cert` at `0xD000`), NVS (`0xF000`), and SPIFFS (`0xC21000`) are never modified or erased.**
-
-> **Just want to flash?** Open **[https://weatherxm.github.io/muse-gadget-sdk/](https://weatherxm.github.io/muse-gadget-sdk/)** in desktop **Chrome** or **Edge**, plug the `WG1200` in over USB-C and follow step 2 below: no clone, toolchain or local server needed. It serves the same RSA-3072 signed `ota_1` image as [`web-flasher/firmware/wxm-wg1200/`](web-flasher/firmware/wxm-wg1200/). For flashing, slot switching and Bluetooth setup in one page, use the [Web Flasher & Provisioner](#web-flasher--provisioner-muse-flasher) instead.
-
-### 1. Start the Local Web Flasher & Provisioning Server
-
-From the repository root, start the local helper server (serves both the **Web Flasher** and the **Web Bluetooth Provisioner** + `api.muse.ai` CORS proxy on port `8099`):
+From the command line, [`esp32/tools/wg1200_dualboot.sh`](esp32/tools/wg1200_dualboot.sh) backs up, builds (versioned from [`devices/wxm-wg1200.version`](esp32/devices/wxm-wg1200.version)) and installs:
 
 ```bash
-python3 esp32/tools/muse/muse_setup_server.py
+./esp32/tools/wg1200_dualboot.sh backup /dev/cu.usbserial-1110
+WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh build
+WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh install /dev/cu.usbserial-1110
 ```
 
-* **Web Flasher (USB Serial):** `http://localhost:8099/web-flasher/`
-* **Web Bluetooth Provisioner (BLE + 365-Day Token Minting):** `http://localhost:8099/`
+### Set up Muse over Bluetooth
 
----
+Both the Web Flasher & Provisioner (tab **2**) and the local provisioner at `http://localhost:8099/` (from `muse_setup_server.py`) run the same flow. A `muse.ai` web token (`s0:…`) expires in about an hour, so it's used once to mint a **365-day** device token pair (`access_token` + `refresh_token`) bound to the gateway's `homelink-xxxxxx` ID.
 
-### 2. Flash a New `WG1200` (Without Touching Stock WeatherXM Firmware)
+1. **Connect** over Web Bluetooth and pick `MuseGadget-XXXXXX` (swipe right on the screen first to turn Bluetooth on). The node ID fills in.
+2. **Fill** your 2.4 GHz Wi-Fi (tick **Remember Wi-Fi password** to skip it next time) and SDK token. Locally, the token can come from the git-ignored [`muse_setup.secrets.json`](esp32/tools/muse/muse_setup.secrets.example.json) or `MUSE_SDK_TOKEN`.
+3. **Get a web token:** copy the DevTools snippet, run it in the Console of a logged-in [muse.ai](https://muse.ai) tab (type `allow pasting` first if Chrome asks), and paste the result.
+4. **Mint** once per device: minting again for the same node ID most likely revokes the pair already on it. Leave **Muse VM server** empty (`hatch.metaaivm.com`); `muse.ai` is the account API, not the VM server.
+5. **1-Click Full Provision:** v5 pairing (P-256 ECDH + HKDF-SHA256 + AES-256-GCM), then **tap Confirm on the screen or briefly press the top button within 60 s**. It writes the VM and token to the Companion service (`muse_ble`) and sends Wi-Fi and the tokens in `provision_v2`. On `auth_ok` the gateway restarts and registers with your Muse VM.
 
-1. Plug your `WG1200` into your computer via USB-C and open **[https://weatherxm.github.io/muse-gadget-sdk/](https://weatherxm.github.io/muse-gadget-sdk/)** (or the local **`http://localhost:8099/web-flasher/`**) in **Google Chrome** or **Edge**.
-2. **Step 1 (SDK Token):** Paste your Muse SDK token (`mgst_...`, 48 chars) from [`https://gadgets.muse.ai/settings/sdk-tokens`](https://gadgets.muse.ai/settings/sdk-tokens).
-3. **Step 2 (Install):** Ensure **WeatherXM WG1200 (D1 Wi-Fi Gateway — Safe Dual-Boot)** is selected, click **Connect & install**, and select **`USB JTAG/serial debug unit`** (`cu.usbmodem*`, USB ID `303a:1001`) for fast (~20s) driverless flashing (the secondary `USB Serial` port `cu.usbserial*` / `1a86:7523` is also supported with automatic write pacing).
-4. ESP Web Tools writes **only** three non-destructive regions using the latest RSA-3072 signed binary (`web-flasher/firmware/wxm-wg1200/`):
-   * `0xC000` — `partition-table.bin` (adds `muse_nvs` at `0xF21000` while keeping all stock WeatherXM partitions identical)
-   * `0x13000` — `otadata_ota1.bin` (selects `ota_1` as the active boot slot)
-   * `0x820000` — `muse-gadget.bin` (RSA-3072 Secure Boot V2 signed Muse firmware in `ota_1`)
-5. When flashing finishes, **close the installer dialog** — the Web Flasher automatically sends `>sdk_token=mgst_...` over USB serial, stores it in `muse_nvs`, and reboots the gateway into Muse (`MuseGadget-XXXXXX`).
+> **Already set up?** A provisioned gateway refuses new pairings (`error_pairing_unavailable`). Hold the top button **5 s and release** (or click **Unpair / Reset Home Link**), then run it again.
 
-> **CLI Alternative:** You can also back up and flash from the terminal using [`esp32/tools/wg1200_dualboot.sh`](esp32/tools/wg1200_dualboot.sh):
-> 
-> ```bash
-> ./esp32/tools/wg1200_dualboot.sh backup /dev/cu.usbserial-1110
-> WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh build
-> WXM_SIGNING_KEY=/path/to/key.pem ./esp32/tools/wg1200_dualboot.sh install /dev/cu.usbserial-1110
-> ```
+### Back to WeatherXM
 
----
+WeatherXM in `ota_0` and `factory` is untouched, so switching back takes seconds:
 
-### 3. Provision the `WG1200` with a Permanent 365-Day Token (Web Bluetooth)
-
-Because a raw web session token (`s0:...`) from `muse.ai` expires after ~1 hour, the provisioner uses it **once** to mint a dedicated **365-day (`31,536,000s`)** device token pair (`access_token` + `refresh_token`) bound to your WG1200's hardware ID (`homelink-xxxxxx`):
-
-1. Open **`http://localhost:8099/`** in **Google Chrome** or **Edge** (desktop: Web Bluetooth).
-2. In **Section 1**, click **Connect ESP32 via Web Bluetooth** and select `MuseGadget-XXXXXX`. The page reads the device's telemetry and auto-fills the **Node ID** (`homelink-xxxxxx`, the lowercase hex suffix of `MuseGadget-XXXXXX`).
-3. In **Section 2A**, enter your **2.4 GHz Wi-Fi SSID & Password** (tick **Remember Wi-Fi password in this browser** to skip it next time) and your **SDK Token (`mgst_...`)**. To have the token filled in for you, put it in the git-ignored `esp32/tools/muse/muse_setup.secrets.json` (copy [`muse_setup.secrets.example.json`](esp32/tools/muse/muse_setup.secrets.example.json)) or set `MUSE_SDK_TOKEN` before starting the server.
-4. In **Section 2B**:
-   * Click **Copy DevTools Token Snippet**, switch to a logged-in [`https://muse.ai`](https://muse.ai) tab, open the DevTools Console (`F12` → Console), paste the snippet and press **Enter** (type `allow pasting` first if Chrome asks). It copies your web `access_token` to the clipboard.
-   * Paste it into **Web User Access Token** and click **Mint 365-Day Device Tokens Now** (`POST https://api.muse.ai/device_token/mint`). Mint **once per device**: minting again for the same Node ID most likely revokes the pair already on the device.
-   * Leave **Muse VM server** empty: the firmware default (`hatch.metaaivm.com`) is right. `muse.ai` is the account API, not the VM server.
-5. In **Section 3**, click **1-Click Full Provision (Home Link + Companion)**. It runs the `v=5` pairing (P-256 ECDH + HKDF-SHA256 + AES-256-GCM), **asks you to tap "Confirm" on the WG1200 touchscreen within 60 s**, writes the Muse VM and token to the Companion service (`muse_ble`), then sends Wi-Fi and the tokens in `provision_v2`.
-6. Within a few seconds the page shows `wifi_connected` and `auth_ok`, the WG1200 restarts, registers with your Muse VM (`link.register`) and is ready for touch queries, live LoRa weather (`sensors.read`), generative `480×480` weather cards and `lan.fetch`.
-
-> **Already set up?** A provisioned WG1200 refuses new pairings (`error_pairing_unavailable`). Hold the top button **5 s and release** (or click **Unpair / Reset Home Link**) to reset Muse, then run 1-click again.
-
----
-
-### 4. How to Return to Stock WeatherXM Firmware Anytime
-
-Because the stock WeatherXM OS in `ota_0` (`0x420000`) and `factory` (`0x20000`) is untouched, you can switch back to WeatherXM in seconds using any of **4 methods**:
-
-1. **On the WG1200 Touchscreen:** Tap **Settings (gear icon) → WeatherXM**, then tap **`Boot ota_0`** (or **`Boot factory`**) and confirm.
-2. **Physical Top Button (10-Second Hold):** Press and hold the **top physical button (`GPIO38`) for 10 seconds** (beeps at 1.5 s and 5 s, then reboots straight into WeatherXM at 10 s). Muse's setup is kept. Releasing between 5 and 10 s instead resets Muse (see [Top button](#top-button)).
-3. **Browser Web Flasher (`http://localhost:8099/web-flasher/`):** Expand **WeatherXM WG1200 — Return to WeatherXM**, click **Return WG1200 to WeatherXM**, and select the USB port (sends `>boot.weatherxm` over USB serial at `115200` baud).
-4. **CLI Script (works even if Muse is not running):**
-   
-   ```bash
-   ./esp32/tools/wg1200_dualboot.sh boot-weatherxm /dev/cu.usbserial-1110
-   ```
-   
-   *(To switch back to Muse later without reflashing, run `./esp32/tools/wg1200_dualboot.sh boot-muse /dev/cu.usbserial-1110`.)*
-
----
+- **Touchscreen:** **Settings → WeatherXM**, then **Boot ota_0** (or **Boot factory**).
+- **Top button:** hold **10 s** (see below). Muse's setup is kept.
+- **Browser:** **Return WG1200 to WeatherXM** in either web flasher sends `>boot.weatherxm` over USB.
+- **Command line** (works even when Muse isn't running): `./esp32/tools/wg1200_dualboot.sh boot-weatherxm /dev/cu.usbserial-1110`, and `boot-muse` to come back without reflashing.
 
 ### Top button
 
-| Hold the top button (`GPIO38`) | What happens                                                                                                            |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Short press                    | Sleep / wake the display (double press: toggle BLE phone setup)                                                         |
-| 1.5 s                          | Beep, and the screen shows `HOLD 5S: RESET MUSE / 10S: WEATHERXM` (let go to cancel)                                    |
-| 5 s, then release              | **Resets Muse**: unpairs Link, forgets Wi-Fi, clears the Muse token and VM, and restarts ready for 1-click provisioning |
-| 10 s                           | **Reboots into stock WeatherXM**, keeping Muse's setup for `boot-muse` later                                            |
+| Hold the top button (`GPIO38`) | What happens |
+| --- | --- |
+| Short press | Sleep / wake the display (double press: toggle BLE phone setup); during pairing, confirms it |
+| 1.5 s | Beep, and the screen shows `HOLD 5S: RESET MUSE / 10S: WEATHERXM` (let go to cancel) |
+| 5 s, then release | **Resets Muse**: unpairs Link, forgets Wi-Fi, clears the Muse token and VM, and restarts ready for 1-click provisioning |
+| 10 s | **Reboots into stock WeatherXM**, keeping Muse's setup for `boot-muse` later |
 
 The reset waits for the release, so holding on to 10 s never resets Muse.
-
----
-
-### Cameras & home-network devices (`lan.fetch`)
-
-Muse runs in a cloud VM and can't reach your home network. The WG1200 can: `lan.fetch` has it GET a URL on your LAN and hand the bytes to Muse. Ask Muse something like *"fetch my camera's snapshot with lan.fetch and show it with display.draw_file"*.
-
-```json
-{"url": "http://192.168.1.20/x/ch1.jpg?token=…"}
-```
-
-- **Any camera with an HTTP snapshot URL**, no particular firmware: Thingino (`/x/ch1.jpg?token=…`), Hikvision (`/ISAPI/Streaming/channels/101/picture`), Dahua and Amcrest (`/cgi-bin/snapshot.cgi`), Reolink (`/cgi-bin/api.cgi?cmd=Snap&channel=0`), Axis (`/axis-cgi/jpg/image.cgi`), ESP32-CAM (`/capture`). RTSP-only and cloud cameras work through a bridge such as [go2rtc](https://github.com/AlexxIT/go2rtc) (`/api/frame.jpeg?src=<cam>`), and local JSON APIs work too.
-- **Logins:** a token in the query, `http://user:pass@host/…`, or the `username` and `password` parameters (Basic or Digest). They are never logged or returned; results show the URL as `http://***@host/path?***`.
-- **Home network only:** the host must be, or resolve to, a private IPv4 address (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`).
-- **What comes back:** `bytes`, `sha256`, `content_type`, `jpeg`, `http_status`, `fetch_ms`, and either a file on your VM (`delivery: "file"`, over `POST /fs/write`) or, when the VM refuses that to the gadget's token as it does today, the body as `data_base64` (`delivery: "inline"`, up to 512 KB).
-- **Options:** `max_bytes` (default 1 MiB, up to 2 MiB), `timeout_ms` (default 15 s), `path` on the VM, `delivery` (`auto`, `file`, `inline`).
-- **Bench test over USB:** `>lan.fetch {"url":"http://…"}` on the serial console runs the same command and prints `@lan.fetch {…}`.
 
 ---
 
