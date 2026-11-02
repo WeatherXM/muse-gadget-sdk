@@ -117,7 +117,51 @@ See [Cameras & home-network devices](#cameras--home-network-devices-lanfetch) fo
   - `device.boot_weatherxm` — Reboots the console back into stock WeatherXM OS whenever you want.
 - **One Top Button, Two Long Holds:** hold **5 s and release** to reset Muse for a fresh 1-click setup, or keep holding to **10 s** to reboot into stock WeatherXM with Muse's setup kept (see [Top button](#top-button)).
 - **1-Click Browser Web Flasher, Web Bluetooth Provisioner & Non-Destructive Dual-Boot:**
-  - Includes a browser-based **Web Flasher** ([`web-flasher/`](web-flasher/)) with the latest RSA-3072 signed `muse-gadget.bin` pre-packaged for safe dual-boot installation, plus the **Full Web Bluetooth Provisioner** ([`esp32/tools/muse/muse_full_setup.html`](esp32/tools/muse/muse_full_setup.html)) for 1-click 365-day token minting and Wi-Fi/VM pairing. Full hardware & protocol reference in **[`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md)**.
+  - Includes [`muse-flasher/`](muse-flasher/) — an Astro + Cloudflare Workers all-in-one **Dual-Boot Studio & BLE Provisioner** that switches between WeatherXM Official (`v0.8.39`, `v0.8.34`, `v0.6.2`) and Muse Gadget OS (`ota_1`), injects SDK tokens over USB, mints 365-day device tokens via `api.muse.ai`, and runs Web Bluetooth Dual-GATT (`Home Link` + `Companion`) provisioning in a single web app.
+  - Also includes the standalone static **Web Flasher** ([`web-flasher/`](web-flasher/)) and local **Full Web Bluetooth Provisioner** ([`esp32/tools/muse/muse_full_setup.html`](esp32/tools/muse/muse_full_setup.html)). Full hardware & protocol reference in **[`esp32/devices/wxm-wg1200.md`](esp32/devices/wxm-wg1200.md)**.
+
+---
+
+## Web Flasher & Provisioner (`muse-flasher/`)
+
+One browser page installs Muse next to WeatherXM, switches between the two, and sets Muse up: no toolchain and no Python server. Plug the `WG1200` in over USB-C, open the page in desktop **Chrome** or **Edge**, and it talks to the gateway directly, over **Web Serial** for flashing and **Web Bluetooth** for setup. A small Cloudflare Worker serves the page and relays the few `api.muse.ai` calls a browser can't make on its own.
+
+### How it works
+
+The `WG1200`'s 16 MB flash already has two app slots and a small boot selector, so Muse lives **beside** WeatherXM instead of replacing it:
+
+| Flash region | What's there | What the flasher does |
+|---|---|---|
+| `0x0` bootloader · `0xD000` certificates · `0xF000` NVS · `0x20000` `factory` | Secure Boot V2 bootloader and the station's WeatherXM identity | Never writes it: a write guard in the page blocks these ranges |
+| `0x420000` `ota_0` | WeatherXM firmware | Writes a signed WeatherXM release only if you pick one |
+| `0x820000` `ota_1` | Muse Gadget OS | Writes the signed Muse image |
+| `0x13000` `otadata` | Which slot boots | Rewrites these 8 KB to switch between WeatherXM and Muse |
+| `0xC000` partition table · `0xF21000` `muse_nvs` | Muse's own settings and tokens | Adds `muse_nvs` once, keeping every WeatherXM partition as it was |
+
+1. **Connect & inspect.** Reads the partition table, `otadata` and each slot's app header, so you see what's installed and which slot boots.
+2. **Install or switch.** Checks the image's SHA-256 and its RSA-3072 Secure Boot V2 signature, writes the slot, verifies the whole slot with an on-chip MD5, and only then switches `otadata`. If the slot already holds that exact build, it just switches `otadata`, in a few seconds.
+3. **SDK token.** After the reboot, it sends `>sdk_token=mgst_…` over the USB console until Muse answers `@sdk_token ok`.
+4. **Pair & provision over Bluetooth.** Mints a 365-day device token pair from your `muse.ai` web token (a DevTools snippet with a **Copy** button fetches it), pairs Home Link (P-256 ECDH + AES-256-GCM, confirmed on the touchscreen), then sends Wi-Fi, your Muse VM and the tokens in `provision_v2`. Tick **Remember Wi-Fi password** to skip typing it next time.
+
+Going back to WeatherXM is the same `otadata` switch, from the page, the touchscreen or the [top button](#top-button). Your tokens stay in your browser: the Worker passes the mint and VM-lookup calls through to `api.muse.ai` and stores nothing.
+
+| Installing Muse into `ota_1` | The write guard and live flashing log |
+|:---:|:---:|
+| <img src=".github/images/muse-flasher-install.webp" width="440" alt="Muse × WeatherXM WG1200 Studio flashing Muse Gadget OS into ota_1 at 15%, with the Muse and WeatherXM firmware cards and the SDK token field below"> | <img src=".github/images/muse-flasher-flashing-log.webp" width="440" alt="The hardware safety guard summary above the live esptool log writing Muse into ota_1"> |
+| Muse is written to `ota_1` while WeatherXM stays in `ota_0`. The SDK token typed here is sent to Muse as soon as it boots. | The page refuses writes outside the OTA slots and `otadata`, and streams `esptool-js` progress as it writes. |
+| **Setup: Wi-Fi, SDK token and 365-day device tokens** | **One-click provisioning and Muse's boot log** |
+| <img src=".github/images/muse-flasher-provisioner.webp" width="440" alt="Token and BLE setup tab: Wi-Fi SSID and password with Show and Remember, SDK token with Write via USB Serial, node ID, Muse VM fields, the DevTools token snippet with a Copy button, and Mint and Verify buttons"> | <img src=".github/images/muse-flasher-boot-log.webp" width="440" alt="The seven provisioning steps and action buttons above the UART log of Muse booting on the WG1200 with its SDK token set"> |
+| The node ID is filled from the USB or Bluetooth connection, and the form is remembered in this browser. | Seven steps from ECDH hello to Wi-Fi & Auth OK, above the console log of Muse booting with its SDK token stored. |
+
+### Run it
+
+```bash
+cd muse-flasher
+npm install
+npm run build && npm run preview   # http://localhost:8787
+```
+
+Pushes to `main` that touch `muse-flasher/` deploy it to Cloudflare Workers ([workflow](.github/workflows/muse-flasher-cloudflare.yml)). Details, including the `/api` contract, are in [`muse-flasher/README.md`](muse-flasher/README.md).
 
 ---
 
@@ -125,7 +169,7 @@ See [Cameras & home-network devices](#cameras--home-network-devices-lanfetch) fo
 
 The `WG1200` dual-boot layout installs Muse into the secondary `ota_1` slot (`0x820000`) and uses an isolated NVS partition (`muse_nvs` at `0xF21000`). **Your original WeatherXM firmware (`factory` at `0x20000` and `ota_0` at `0x420000`), Secure Boot V2 bootloader (`0x0`), hardware certificates (`esp_secure_cert` at `0xD000`), NVS (`0xF000`), and SPIFFS (`0xC21000`) are never modified or erased.**
 
-> **Just want to flash?** Open **[https://weatherxm.github.io/muse-gadget-sdk/](https://weatherxm.github.io/muse-gadget-sdk/)** in desktop **Chrome** or **Edge**, plug the `WG1200` in over USB-C and follow step 2 below: no clone, toolchain or local server needed. It serves the same RSA-3072 signed `ota_1` image as [`web-flasher/firmware/wxm-wg1200/`](web-flasher/firmware/wxm-wg1200/). Provisioning (step 3) still runs locally, because it mints device tokens through the local `api.muse.ai` proxy.
+> **Just want to flash?** Open **[https://weatherxm.github.io/muse-gadget-sdk/](https://weatherxm.github.io/muse-gadget-sdk/)** in desktop **Chrome** or **Edge**, plug the `WG1200` in over USB-C and follow step 2 below: no clone, toolchain or local server needed. It serves the same RSA-3072 signed `ota_1` image as [`web-flasher/firmware/wxm-wg1200/`](web-flasher/firmware/wxm-wg1200/). For flashing, slot switching and Bluetooth setup in one page, use the [Web Flasher & Provisioner](#web-flasher--provisioner-muse-flasher) instead.
 
 ### 1. Start the Local Web Flasher & Provisioning Server
 
