@@ -13,6 +13,7 @@ export type ConnectionStage =
   | 'flashing'
   | 'verifying'
   | 'rebooting'
+  | 'disconnecting'
   | 'complete'
   | 'error';
 

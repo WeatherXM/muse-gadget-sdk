@@ -172,10 +172,48 @@ export class FlasherController {
     }
   }
 
+  /** True while a USB session holds the gateway in its bootloader. */
+  get holdsGatewayInBootloader(): boolean {
+    return this.session !== null;
+  }
+
+  /**
+   * Closes the USB session. The gateway waits in its bootloader while connected,
+   * so reboot it into the slot otadata selects rather than leave it there.
+   */
   async disconnectDevice(): Promise<void> {
-    if (this.session) {
-      await this.session.disconnectQuietly();
-      this.session = null;
+    const session = this.session;
+    const device = this.state.device;
+    this.session = null;
+    if (session) {
+      this.setState({ stage: 'disconnecting' });
+      const app = device
+        ? [device.activeApp.projectName || device.activeFlavor, device.activeApp.version].filter(Boolean).join(' ')
+        : '';
+      const target = device ? `${device.activeSlot} (${app})` : 'its firmware';
+      this.log('info', `Rebooting the WG1200 into ${target}...`);
+      try {
+        const serialPort = session.serialPort;
+        await session.hardResetAndClose();
+        const bootResult = await monitorPostBootAndInjectToken({
+          port: serialPort,
+          expectedFlavor: device?.activeFlavor ?? 'weatherxm',
+          onLine: (line) => this.log('info', line),
+        });
+        if (bootResult.downloadMode) {
+          this.log(
+            'error',
+            'The WG1200 restarted into download mode instead of booting its firmware. Unplug it and plug it back in.',
+          );
+        } else if (bootResult.bootConfirmed) {
+          this.log('info', `The WG1200 booted ${bootResult.detectedFlavor === 'muse' ? 'Muse' : 'WeatherXM'}.`);
+        } else {
+          this.log('warn', 'Could not read the boot log after the reset, so the boot was not confirmed.');
+        }
+      } catch (err) {
+        this.log('warn', `Reboot on disconnect failed: ${err instanceof Error ? err.message : String(err)}`);
+        await session.disconnectQuietly();
+      }
     }
     this.setState({
       stage: 'disconnected',

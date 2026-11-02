@@ -178,7 +178,8 @@ export function initWg1200Studio(): void {
       state.stage === 'inspecting' ||
       state.stage === 'flashing' ||
       state.stage === 'verifying' ||
-      state.stage === 'rebooting';
+      state.stage === 'rebooting' ||
+      state.stage === 'disconnecting';
 
     if (connectBtn) connectBtn.disabled = isBusy;
     if (connectLabel) {
@@ -192,6 +193,11 @@ export function initWg1200Studio(): void {
               : 'Connect WG1200 via USB Serial';
     }
     disconnectBtn?.classList.toggle('hidden', !state.device || isBusy);
+    // Disconnecting reboots the gateway only while a session holds it in its bootloader.
+    const holdsGateway = controller.holdsGatewayInBootloader && !isBusy;
+    const disconnectLabel = el('disconnect-usb-btn-label');
+    if (disconnectLabel) disconnectLabel.textContent = holdsGateway ? 'Disconnect & reboot' : 'Disconnect USB';
+    el('usb-bootloader-note')?.classList.toggle('hidden', !holdsGateway);
 
     if (connBadge) {
       connBadge.textContent = `Status: ${state.stage.toUpperCase()}${

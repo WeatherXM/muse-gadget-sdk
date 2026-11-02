@@ -120,3 +120,71 @@ describe('stalled flash reads', () => {
     expect(resyncs()).toBe(1);
   });
 });
+
+describe('disconnecting', () => {
+  // A WebSerial port that replays a boot log once the monitor reopens it.
+  const consolePort = (bootLog: string) => {
+    const port: any = {
+      readable: null,
+      getInfo: () => ({ usbVendorId: 0x303a, usbProductId: 0x1001 }),
+      async open() {
+        port.readable = new ReadableStream({
+          start: (c) => c.enqueue(new TextEncoder().encode(bootLog)),
+        });
+      },
+      async setSignals() {},
+      async close() {
+        port.readable = null;
+      },
+    };
+    return port as SerialPort;
+  };
+
+  const connectedController = async (bootLog: string) => {
+    const { FlasherController } = await import('../src/lib/flasher/flasherController');
+    const controller = new FlasherController();
+    const calls: string[] = [];
+    const c = controller as any;
+    c.session = {
+      serialPort: consolePort(bootLog),
+      hardResetAndClose: async () => calls.push('reboot'),
+      disconnectQuietly: async () => calls.push('close'),
+    };
+    c.state = {
+      ...controller.currentState,
+      stage: 'ready',
+      device: {
+        activeSlot: 'ota_1',
+        activeFlavor: 'muse',
+        activeApp: { projectName: 'muse-gadget', version: '0.1.0-g494c2b3' },
+      },
+    };
+    const logs: string[] = [];
+    controller.subscribeLogs((_level, msg) => logs.push(msg));
+    const stages: string[] = [];
+    controller.subscribeState((s) => stages.push(s.stage));
+    return { controller, calls, logs, stages };
+  };
+
+  it('reboots the gateway into its firmware instead of leaving it in the bootloader', async () => {
+    const { controller, calls, logs, stages } = await connectedController(
+      'I (548) boot: Loaded app from partition at offset 0x820000\n',
+    );
+    expect(controller.holdsGatewayInBootloader).toBe(true);
+    await controller.disconnectDevice();
+    expect(calls).toEqual(['reboot']);
+    expect(controller.holdsGatewayInBootloader).toBe(false);
+    expect(stages).toContain('disconnecting');
+    expect(controller.currentState.stage).toBe('disconnected');
+    expect(logs.join('\n')).toMatch(/Rebooting the WG1200 into ota_1 \(muse-gadget 0\.1\.0-g494c2b3\)[\s\S]*booted Muse/);
+  });
+
+  it('tells you to replug when the reboot lands in download mode', async () => {
+    const { controller, logs } = await connectedController(
+      'rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))\n',
+    );
+    await controller.disconnectDevice();
+    expect(logs.join('\n')).toMatch(/download mode[\s\S]*Unplug it and plug it back in/);
+    expect(controller.currentState.stage).toBe('disconnected');
+  });
+});

@@ -67,7 +67,7 @@
             id="disconnect-usb-btn"
             class="hidden rounded-xl border border-line bg-surface-raised hover:bg-surface-hover px-4 py-2.5 text-xs font-medium text-ink-secondary hover:text-ink transition-colors"
           >
-            Disconnect USB
+            <span id="disconnect-usb-btn-label">Disconnect USB</span>
           </button>
 
           <button
@@ -83,6 +83,14 @@
           Status: Disconnected
         </span>
       </div>
+
+      <p
+        id="usb-bootloader-note"
+        class="hidden mt-3 rounded-xl border border-state-warning-border bg-state-warning-bg px-3 py-2 text-xs text-ink-secondary"
+      >
+        While connected, the WG1200 waits in its bootloader, so its screen and firmware are paused.
+        <strong class="text-ink">Disconnect &amp; reboot</strong> starts it again.
+      </p>
 
       <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-muted">
         <p>
