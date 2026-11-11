@@ -110,6 +110,9 @@ extern "C" {{
 #define CONFIG_HOMEHUB_DISPLAY_COMMANDS 1
 #define CONFIG_HOMEHUB_LED_BACKEND_MUSE 1
 #define CONFIG_HOMEHUB_TUNNEL 1
+#define MUSE_DEVICE_FAMILY "gadget"
+#define CONFIG_MUSE_DEVICE_MODEL_ID "muse-gadget-wxm-wg1200"
+#define CONFIG_MUSE_DEVICE_MODEL_NAME "WeatherXM WG1200"
 
 typedef uint32_t noise_ctrl_session_generation_t;
 typedef struct {{
@@ -278,7 +281,13 @@ int main(int argc, char **argv) {{
     def test_register_advertises_wg1200_and_display_commands(self) -> None:
         reg = self.run_harness("register")
         self.assertEqual(reg["method"], "link.register")
+        self.assertEqual(reg["params"]["device_family"], "gadget")
+        self.assertEqual(reg["params"]["model_id"], "muse-gadget-wxm-wg1200")
+        self.assertEqual(reg["params"]["metadata"]["model_name"], "WeatherXM WG1200")
         commands = reg["params"]["commands_v2"]
+        self.assertIn("device.guide", commands)
+        self.assertIn("device.discover", commands)
+        self.assertNotIn("lan.fetch", commands)
 
         self.assertIn("sensors.read", commands)
         self.assertIn("BMP390", commands["sensors.read"]["description"])

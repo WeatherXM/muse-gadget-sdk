@@ -22,14 +22,14 @@ How to work on this Linux client, test it, and deploy it to a device. See
 ## What this is
 
 A Python package (`musegadget`) that makes any Linux computer into a Muse
-Home Link. It pairs with the Muse phone app over BLE, then holds an encrypted
+Gadget. It pairs with the Muse phone app over BLE, then holds an encrypted
 Noise session to the user's Muse VM and runs the commands Muse sends it. It is
 the Linux counterpart of the ESP32 firmware in `../esp32` and speaks the same
 pairing and control protocols, so the same app pairs either.
 
 | Module | Role |
 |---|---|
-| `cli.py` | `musegadget pair`, `run`, `send-user-msg`, `info`, `unpair` |
+| `cli.py` | `musegadget pair`, `run`, `send-user-msg`, `chat`, `info`, `unpair` |
 | `pair.py` | `pair()`: opens BLE setup, checks and saves the pairing, prints nothing |
 | `pairing.py` | Community pairing v5: P-256 ECDH, HKDF-SHA256, AES-256-GCM, `confirm_app` |
 | `ble_framing.py` | Chunked BLE framing (`0xFE`, index, total, payload) |
@@ -37,15 +37,18 @@ pairing and control protocols, so the same app pairs either.
 | `ble_server.py` | BlueZ GATT peripheral and advertisement over D-Bus (GLib loop) |
 | `identity.py` | Persistent identity: `homelink-xxxxxx` node id, `MuseGadgetXXXXXX` BLE name |
 | `muse_api.py` | `fetch_vms` and device token refresh |
+| `tls.py` | The TLS context for every HTTPS and WSS connection: the system trust store minus distrusted root CAs |
 | `link_client.py` | One session: `/v1/noise` upgrade, Noise XX, `/link-control`, `/chat/stream`, `/chat/subscribe`, TTS streams |
 | `streaming.py` | Bounded duplex request bodies, response chunks and NDJSON parsing |
 | `voice_call.py`, `voice_audio.py` | MCU realtime voice lifecycle, WAV input/output and optional live audio |
 | `service.py` | `musegadget run`: reconnect loop, token rotation, local socket |
+| `terminal_chat.py`, `terminal_chat_ui.py` | Interactive terminal chat over the service socket, curses UI and plain-text fallback |
 | `muse_turn.py` | Follows one request through Muse's chat events to its replies |
 | `executor.py`, `fileops.py` | The commands Muse can run, as the chosen account |
 | `commands.py` | The owner's own commands, from `/etc/musegadget/commands.d/*.json` |
+| `device_guide.py` | `device.guide`'s spec and the Linux client's own guide |
 | `noise/` | Noise XX handshake, framing and service envelopes |
-| `data/` | The systemd unit and the hash-pinned `requirements.lock`, shipped in the package |
+| `data/` | The systemd unit, the hash-pinned `requirements.lock` and the default `guide.md`, shipped in the package |
 
 ## Prerequisites
 
@@ -156,15 +159,24 @@ never has a command's parameters, output or error message.
   Both directions carry JSON messages, each prefixed with a little-endian u32
   length. The device sends `link.register`, then a `link.result` for each
   `link.invoke`. `link.unpaired` means the Muse removed the device.
-- Register as `platform: "linux"`, `device_family: "homehub"`. Never use family
-  `link` or advertise `device.ota`: the server pushes ESP32 firmware updates to
-  every `link` device.
+- Register as `platform: "linux"` and `device_family: "gadget"`, with
+  `model_id` and `metadata.model_name` from the `DeviceDescription`
+  (`../protocols/DEVICE.md`). Every device built with this SDK registers
+  `device_family: "gadget"`; other families are reserved for Muse's own
+  devices. Don't advertise `device.ota`: it installs ESP32 firmware.
 - Messages from the device to the Muse (`musegadget send-user-msg`) go as separate
   `POST /chat/stream` requests on the same session, with `device_id` set to the
   node id and `"output_modality": "text"`. `session_id` picks the chat;
   `chat_id` is not an API field and is ignored. The response is only the ack
   (`message_id`); the reply appears in the Muse chat. Replies are text: to
   speak them, use a text-to-speech API of your choice.
+- `send-user-msg --wait` (the local socket's `"wait"`) opens `/chat/subscribe`
+  before sending and returns the answer's text: what follows the message's own
+  `message.user` event, as on the ESP32, read through `MuseTurn`. A new side
+  chat is created by the message, so it is sent first. One waiting request per
+  chat at a time; the whole wait, queueing included, is bounded by its seconds,
+  plus at most 2 s of cleanup. On a new side chat, an answer finished before
+  the follow-up subscription opens is missed and the wait times out.
 - The VM accepts at most 256 KB per `/link-control` message, so command output
   is cut at 96 KB per stream.
 
@@ -272,8 +284,8 @@ listed here. Everything else is internal and can change.
 
 - `service.Service` keeps a paired device connected to its Muse. It fetches the
   device's VMs, connects, reconnects with backoff and rotates the device token.
-- `Service(identity, executor, sdk_token=None, display_name=...)` is a
-  dataclass. A dataclass subclass can add fields with defaults. `executor`
+- `Service(identity, executor, sdk_token=None, display_name=..., model_id=...,
+  model_name=..., guide=...)` is a dataclass. A dataclass subclass can add fields with defaults. `executor`
   is an `executor.Executor` instance.
 - `await Service.run()` runs until `Service.stop()` is called or `serve()`
   returns `Outcome.STOPPED`.
@@ -296,10 +308,31 @@ listed here. Everything else is internal and can change.
   at a `pathlib.Path`. It returns an `asyncio.Server` that the caller must
   close. The socket forwards to the registered session while `serve()` runs.
   `Service.run()` does not start this socket itself.
-- `link_client.DeviceDescription(node_id, display_name, version, commands)` describes the
-  device to Muse. `commands` maps each command name to its spec: a
-  `description`, `required` and `optional` parameters, and an optional
-  `timeout_ms`.
+- `link_client.DeviceDescription(node_id, display_name, version, commands,
+  model_id=..., model_name=..., guide=None)` describes the device to Muse.
+  `commands` maps each command name to its spec: a `description`, `required`
+  and `optional` parameters, and an optional `timeout_ms`.
+- `model_id` and `model_name` name your hardware (`../protocols/DEVICE.md`);
+  the defaults are `muse-gadget-linux` and `Linux gadget`.
+- `guide` is the Markdown `device.guide` returns, at most 4096 bytes. When
+  it's set, the session advertises `device.guide` and answers it itself.
+  `Service`'s default is the Linux client's own guide
+  (`device_guide.default_guide()`, from `data/guide.md`); a gadget that
+  changes what the device does should set its own.
+  - `data/guide.md` is generic and follows "Guides in this repository" in
+    `../protocols/DEVICE.md`, which the tests check.
+  - Your own gadget's guide is free-form: say what it's for and how you want
+    Muse to use its commands. Only the 4096-byte limit is checked.
+- Set your device's `model_id`, `model_name` and `guide` on `Service`, not
+  by changing what `describe()` returns: `describe()` sizes the owner's
+  drop-in commands against the registration limit with them. `Service` and
+  `DeviceDescription` raise `ValueError` for values outside the rules, and
+  `Service.run()` checks `describe()` before it connects. For example:
+
+  ```python
+  service = Service(identity, executor, model_id="acme-robot", model_name="Acme Robot",
+                    guide=Path("guide.md").read_text())
+  ```
 - `link_client.Outcome` says how a session ended: `CLOSED`, `AUTH_REJECTED`, `FORBIDDEN`,
   `UNPAIRED` or `STOPPED`.
 
@@ -314,11 +347,14 @@ run_command=...)` is one encrypted session with a Muse VM.
   the same threading and result contract as `Service.run_command`.
 - `registered` is an `asyncio.Event` that is set once Muse accepts the device.
   It clears when the session ends.
-- `send_chat(message, session_id=None, *, output_modality="text")` sends a
-  user message as coming from this device. Without `session_id` it goes to
-  the main chat.
-- `send_voice(wav_bytes, session_id=None, *, message="", output_modality=None)`
-  sends a WAV voice note of at most 2 MiB.
+- `send_chat(message, session_id=None, *, output_modality="text",
+  device=None)` sends a user message as coming from this device. Without
+  `session_id` it goes to the main chat.
+- `send_voice(wav_bytes, session_id=None, *, message="", output_modality=None,
+  device=None)` sends a WAV voice note of at most 2 MiB.
+- `device="mcu-wearable"` on a spoken turn (dictation or a voice note) asks
+  Muse for short plain sentences, for that request only. Omit it for typed
+  messages.
 - `send_image(image_bytes, mime_type, session_id=None, *, message="",
   filename=None, output_modality="text")` sends a picture of at most
   `link_client.MAX_IMAGE_BYTES` (2 MiB), with `message` as its text.
@@ -332,7 +368,8 @@ run_command=...)` is one encrypted session with a Muse VM.
   `SideChat.exists` is false for an ID that Muse does not know yet. The first
   `send_chat` to that ID creates the chat. The lookup closes its subscription
   without reading events.
-- `subscribe_chat(session_id=None)` yields Muse's chat events.
+- `subscribe_chat(session_id=None, *, opened=None)` yields Muse's chat events.
+  `opened`, an `asyncio.Event`, is set once Muse accepts that subscription.
   `chat_subscribed` is set while a subscription is open.
 - `stream_tts(message_id)` yields MP3 audio for a reply that Muse gave in voice
   mode.

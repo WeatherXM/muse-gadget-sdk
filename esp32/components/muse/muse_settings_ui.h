@@ -38,3 +38,9 @@ bool muse_settings_ui_in_subpage(void);
 void muse_settings_ui_open_wg1200_page(const char *name);
 void muse_settings_ui_trigger_wg1200_weather_card(void);
 #endif
+
+#if LV_USE_SNAPSHOT
+/* Bench screenshots: opens a settings page by name ("home", "wifi", "muse",
+ * "ble", "sound", "sleep", "battery", "power") on the next tick. */
+bool muse_settings_ui_bench_open(const char *name);
+#endif

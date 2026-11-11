@@ -34,6 +34,10 @@ static void image_sync(void) {}
 static void notify_sync(void) {}   /* WG1200 notification card */
 static void image_hide_locked(void) {}
 static void muse_ui_show_face(void) {}
+#if CONFIG_MUSE_VOICE_NOTE_TOGGLE
+static bool s_note_listening;
+static void update_tileview_swipe(void) {}
+#endif
 static bool update_sleep(void) { return false; }
 static void update_chrome(float now) { (void)now; }
 static bool muse_menu_tick(float now) { (void)now; return false; }

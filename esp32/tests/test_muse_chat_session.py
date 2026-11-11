@@ -27,9 +27,13 @@ class ChatSession(unittest.TestCase):
         reset = source[source.index('static bool turn_start('):source.index('static void turn_begin(')]
         done = source[source.index('static void turn_done('):source.index('/* Ends any turn')]
         check = source[source.index('static void check_turn('):source.index('/* ---- Inbound dispatch')]
+        chat = source[source.index('static void send_chat('):source.index('static void on_dictation_line(')]
+        kinds = source.index('enum kind_t')
+        kinds = source[kinds:source.index('\n', kinds) + 1]
         tts = source.index('static void start_tts(void)')
         start_tts = source[tts:source.index('\n}\n', tts) + 3]
         code = r'''
+#include <atomic>
 #include <cassert>
 #include <cstdarg>
 #include <cstdint>
@@ -42,17 +46,25 @@ class ChatSession(unittest.TestCase):
 #include "minimp3.h"
 #include "muse_chat_priv.h"
 #include "muse_state.h"
+#if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
+#include "muse_review.h"
+#include "muse_text.h"
+#endif
 #define ESP_LOGI(...) ((void)0)
 #define ESP_LOGW(...) ((void)0)
 ''' + constants + types + r'''
 static turn_t s_turn;
+static pending_t s_pending;
+static std::atomic<bool> s_incoming{false};
+static std::atomic<bool> s_incoming_used{true};
 static char s_reply_shown[EV_TEXT];
-static int64_t s_last_seq, s_marks[4];
+static int64_t s_last_seq, s_last_row_seq, s_marks[4];
+static void *psram_alloc(size_t n) { return malloc(n); }
 static int captions, console_events;
 static int done_events;
 static int64_t clock_us = 12345;
 static char done_text[EV_TEXT], console_type[32], console_fields[128];
-enum mark_t { M_TEXT, M_DONE };
+enum mark_t { M_TEXT, M_DONE, M_SENT };
 static void mark(mark_t) {}
 static int64_t now_us() { return clock_us; }
 static void emit(muse_hatch_ev_t type, const char *text) {
@@ -107,7 +119,25 @@ static bool has_reply_text() {
     }
     return false;
 }
-''' + done + reset + handlers + start_tts + check + r'''
+#if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
+/* The real review store, read back whole: one page holds all of it here. */
+int muse_chat_caption_page(const char *text, int, char *out, size_t cap) {
+    strlcpy(out, text, cap); return 1;
+}
+void muse_text_to_ascii(char *, size_t) {}
+void muse_text_to_caption(char *, size_t) {}
+#endif
+''' + kinds + r'''static char chat_body[256];
+static int64_t open_stream(kind_t kind, const char *verb, const char *path, const char *, const char *,
+                           const char *body, bool end_body) {
+    assert(kind == K_CHAT && !strcmp(verb, "POST") && !strcmp(path, "/chat/stream") && body && end_body);
+    strlcpy(chat_body, body, sizeof(chat_body));
+    return 7;
+}
+static bool send_body(int64_t, const uint8_t *, size_t, bool) { return true; }
+static void disconnect(const char *) {}
+static bool send_reset(int64_t) { return true; }
+''' + done + reset + handlers + start_tts + check + chat + r'''
 static void begin(bool typed = false) {
     clock_us = 12345;
     assert(turn_start(s_turn.gen + 1, typed));
@@ -232,6 +262,8 @@ static void paced_to_the_kept_text() {
 static void capped_voice(bool partial) {
     begin();
     s_turn.agent_busy = true;
+    /* An acked request Muse is working on lets go at DETACH_US instead (detach()). */
+    s_turn.acked = partial;
     if (partial) {
         event("delta.message_start", "reply", "note");
         event("delta.text_append", "reply", "", "Partial reply");
@@ -322,6 +354,348 @@ static void typed_reply_at_cap(bool finished, bool busy) {
     assert(!strcmp(console_fields, finished && !busy ? "\"messages\":1,\"complete\":true"
                                                      : "\"messages\":1,\"complete\":false"));
 }
+/* A dictated turn names the device, so Muse keeps its reply short and plain;
+ * a typed one doesn't. Both still ask for text. */
+static void chat_request(bool spoken) {
+    chat_body[0] = '\0';
+    if (spoken) {
+        assert(turn_start(s_turn.gen + 1, false));
+        post_chat(" Hi");
+    } else {
+        text_begin("Hi");
+    }
+    assert(s_turn.phase == P_WAIT_REPLY && s_turn.text == !spoken);
+    assert(!strcmp(chat_body, spoken ? "{\"message\":\"Hi\",\"output_modality\":\"text\",\"device\":\"mcu-wearable\"}"
+                                     : "{\"message\":\"Hi\",\"output_modality\":\"text\"}"));
+}
+#if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
+static char review[40000];
+static const char *reviewed() {
+    int page = 0, pages = 0;
+    review[0] = 0;
+    muse_review_close();
+    if (muse_review_step(1)) assert(muse_review_page(review, sizeof(review), &page, &pages));
+    muse_review_close();
+    return review;
+}
+/* Production typed turns: text_begin() starts each one with generation 0. */
+static void typed(const char *text) {
+    text_begin(text);
+    assert(s_turn.phase == P_WAIT_REPLY && s_turn.text && s_turn.gen == 0);
+    s_turn.acked = true;
+    strlcpy(s_turn.user_ids[0], "note", sizeof(s_turn.user_ids[0]));
+}
+static void reply(const char *id, const char *text) {
+    event("delta.message_start", id, "note");
+    event("delta.text_append", id, "", text);
+    event("delta.message_done", id);
+}
+static void typed_turns_replace_the_review() {
+    assert(muse_review_init() == 0);
+    s_turn.texts = static_cast<char *>(calloc(MAX_MSGS, TEXT_MAX));
+    typed("one");
+    reply("r1", "First reply");
+    assert(!strcmp(reviewed(), "First reply"));
+    typed("two");
+    reply("r2", "Second reply");
+    assert(!strcmp(reviewed(), "Second reply"));   /* not joined to the first turn's */
+    typed("three");
+    reply("a", "Part one");
+    reply("b", "Part two");
+    assert(!strcmp(reviewed(), "Part one\n\nPart two"));   /* one turn's messages stay together */
+    typed("four");   /* no reply: the last one stays */
+    assert(!strcmp(reviewed(), "Part one\n\nPart two"));
+    for (int i = 0; i < 40; i++) {   /* many serial turns never fill the store */
+        char text[32];
+        snprintf(text, sizeof(text), "Reply %d", i);
+        typed("again");
+        reply("r", text);
+        assert(!strcmp(reviewed(), text));
+    }
+    begin(false);   /* a voice turn replaces a typed one, and the other way round */
+    reply("v", "Spoken reply");
+    assert(!strcmp(reviewed(), "Spoken reply"));
+    typed("five");
+    reply("t", "Typed again");
+    assert(!strcmp(reviewed(), "Typed again"));
+    free(s_turn.texts);
+    s_turn.texts = nullptr;
+}
+static void review_keeps_the_whole_reply() {
+    assert(muse_review_init() == 0);
+    s_turn.texts = static_cast<char *>(calloc(MAX_MSGS, TEXT_MAX));
+    static char long_text[5000];
+    memset(long_text, 'a', sizeof(long_text) - 1);
+    for (bool typed_turn : {false, true}) {
+        begin(typed_turn);
+        reply("long", long_text);   /* past the 1 KB live-caption copy */
+        assert(!strcmp(reviewed(), long_text));
+        begin(typed_turn);
+        event("delta.message_start", "reply", "note");
+        event("delta.text_append", "reply", "", "short delta");
+        event("message.assistant", "reply", "note", "Complete final reply");
+        assert(!strcmp(reviewed(), "Complete final reply"));
+        event("delta.message_done", "reply");
+        assert(!strcmp(reviewed(), "Complete final reply"));   /* one completion, stored once */
+    }
+    free(s_turn.texts);
+    s_turn.texts = nullptr;
+}
+/* Keeping the whole reply for review doesn't slow the automatic captions:
+ * they pace the same first CAPTION_TEXT bytes as other boards, well inside
+ * the turn's cap, so a long completed reply isn't cut off as incomplete. */
+static void review_keeps_caption_pace() {
+    assert(muse_review_init() == 0);
+    static char reply[5001];
+    memset(reply, 'a', sizeof(reply) - 1);
+    const char *kept = voice_reply({reply});
+    start_tts();
+    const msg_t &m = s_turn.msgs[0];
+    assert(m.tts == TTS_ACTIVE && strlen(kept) == sizeof(reply) - 1);
+    assert(m.pcm_frames == (uint32_t)((CAPTION_TEXT - 1) * MIC_RATE / TEXT_CHARS_PER_S));
+    assert((int64_t)m.pcm_frames * 1000000 / MIC_RATE < TURN_CAP_US / 2);
+    assert(!strcmp(reviewed(), reply));
+    s_turn.texts = nullptr;
+}
+#endif
+static void status(const char *code) {
+    cJSON *root = cJSON_CreateObject(), *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "type", "event");
+    cJSON_AddStringToObject(root, "event", "agent.status");
+    cJSON_AddItemToObject(root, "payload", payload);
+    cJSON_AddStringToObject(payload, "activity_code", code);
+    on_event(root);
+    cJSON_Delete(root);
+}
+/* Plays out the turn's messages and lets it settle, as check_turn sees it. */
+static void settle() {
+    for (int i = 0; i < s_turn.nmsgs; i++) s_turn.msgs[i].tts = TTS_FINISHED;
+    clock_us += BUSY_HOLD_US + 1;
+    check_turn();
+}
+/* A spoken turn Muse acked and is still working on, 21 s on: it says so and lets go. */
+static void detach() {
+    pending_clear();
+    begin();
+    status("working");
+    clock_us += DETACH_US + 1;
+    check_turn();
+    assert(s_turn.detached && s_turn.nmsgs == 1 && s_turn.msgs[0].done && captions == 1);
+    s_turn.msgs[0].tts = TTS_FINISHED;
+    clock_us += SETTLE_US - 1000000;
+    status("working");   /* Muse's status keeps coming: the notice still ends the turn */
+    clock_us += 1000001;
+    check_turn();
+    assert(s_turn.phase == P_IDLE && s_pending.active && s_pending.busy && done_events == 1);
+}
+static void detaches_only_while_muse_works() {
+    begin();   /* Muse doesn't say it's working: the turn waits, then fails as before */
+    clock_us += DETACH_US + 1;
+    check_turn();
+    assert(!s_turn.detached && !s_turn.nmsgs && s_turn.phase == P_WAIT_REPLY);
+    clock_us = s_turn.chat_us + REPLY_TIMEOUT_US + 1;
+    check_turn();
+    assert(fail_events == 1 && !strcmp(fail_text, "NO REPLY FROM MUSE") && !s_pending.active);
+    s_incoming_used = false;   /* no voice task plays late replies (Voice PE): it waits as before */
+    begin();
+    status("working");
+    clock_us += DETACH_US + 1;
+    check_turn();
+    assert(!s_turn.detached && !s_turn.nmsgs && s_turn.phase == P_WAIT_REPLY);
+    event("message.assistant", "reply", "note", "Answer");
+    settle();   /* ends while Muse is still busy, but nothing would play the rest */
+    assert(s_turn.phase == P_IDLE && done_events == 1 && !s_pending.active);
+    s_incoming_used = true;
+    detach();
+}
+static void late_reply_matched_by_its_request() {
+    detach();
+    s_incoming = false;
+    /* Live deltas name no request; another chat's row, or one naming nothing, isn't it. */
+    event("delta.message_start", "late");
+    event("delta.text_append", "late", "", "Streaming");
+    event("delta.message_done", "late");
+    event("message.assistant", "phone", "elsewhere", "Another chat");
+    event("message.assistant", "proactive", "", "Unprompted");
+    event("message.assistant", "late", "note", "");   /* text not ready yet */
+    assert(s_turn.phase == P_IDLE && !s_incoming && !s_pending.replies);
+    event("message.assistant", "late", "note", "The document is ready");
+    assert(s_incoming.exchange(false) && s_pending.replies && s_turn.phase == P_IDLE);
+    event("message.assistant", "late", "note", "The document is ready");   /* sent again */
+    event("message.assistant", "later", "note", "And a summary");   /* before the voice task takes them */
+    assert(cJSON_GetArraySize(s_pending.replies) == 2);
+    incoming_play(s_turn.gen + 1);
+    assert(s_turn.phase == P_WAIT_REPLY && s_turn.incoming && s_turn.agent_busy);
+    assert(s_turn.nmsgs == 2 && !strcmp(s_turn.msgs[0].id, "late") && !strcmp(s_turn.msgs[1].id, "later"));
+    assert(s_turn.msgs[0].done && s_turn.msgs[1].done);
+    assert(s_turn.msgs[0].len == 21 && !s_pending.active && !s_pending.replies);
+    /* Delivered, and Muse is done: nothing more is waited for. */
+    status("online");
+    settle();
+    assert(s_turn.phase == P_IDLE && !s_pending.active);
+    event("message.assistant", "after", "note", "Too late");
+    assert(!s_incoming && !s_pending.replies);
+}
+static void pending_is_forgotten() {
+    detach();   /* Muse stops working and nothing comes: forgotten soon after */
+    status("online");
+    pending_expire(clock_us + PENDING_IDLE_US - 1);
+    assert(s_pending.active);
+    pending_expire(clock_us + PENDING_IDLE_US + 1);
+    assert(!s_pending.active);
+    event("message.assistant", "late", "note", "Too late");
+    assert(!s_incoming && !s_pending.replies);
+    detach();   /* still working, but not for ever, however often Muse says so */
+    int64_t armed = clock_us;
+    for (clock_us = armed; clock_us < armed + PENDING_US; clock_us += 60 * 1000000LL) status("working");
+    pending_expire(armed + PENDING_US - 1);
+    assert(s_pending.active);
+    pending_expire(armed + PENDING_US + 1);
+    assert(!s_pending.active);
+    detach();   /* a reply held for a resting board waits out Muse going idle, then the cap */
+    event("message.assistant", "late", "note", "Held");
+    status("online");
+    pending_expire(clock_us + PENDING_IDLE_US + 1);
+    assert(s_pending.active && s_incoming);
+    pending_expire(clock_us + PENDING_US + 1);
+    assert(!s_pending.active && !s_pending.replies && !s_incoming);
+}
+static void played_messages_are_not_replayed() {
+    pending_clear();
+    begin();
+    status("working");
+    event("delta.message_start", "first");
+    event("delta.text_append", "first", "", "On it");
+    event("delta.message_done", "first");
+    settle();   /* still working after the hold: the rest comes later */
+    assert(s_turn.phase == P_IDLE && done_events == 1 && s_pending.active && s_pending.nplayed == 1);
+    s_incoming = false;
+    event("message.assistant", "first", "note", "On it");   /* its row, after it played */
+    assert(!s_incoming && !s_pending.replies);
+    event("message.assistant", "second", "note", "Done now");
+    assert(s_incoming.exchange(false));
+    incoming_play(s_turn.gen + 1);
+    event("message.assistant", "first", "note", "On it");
+    assert(s_turn.nmsgs == 1 && !strcmp(s_turn.msgs[0].id, "second"));
+    event("message.assistant", "third", "first", "Following up on it");   /* answers what played before */
+    assert(s_turn.nmsgs == 2 && !strcmp(s_turn.msgs[1].id, "third"));
+    int64_t armed = s_pending.armed_us;
+    settle();   /* still working: armed again for the same request, as of its first turn */
+    assert(s_pending.active && s_pending.nplayed == 3 && s_pending.armed_us == armed);
+    event("message.assistant", "first", "note", "On it");
+    event("message.assistant", "second", "note", "Done now");
+    assert(!s_incoming && !s_pending.replies);
+}
+static void status_event(const char *parent, const char *code) {
+    cJSON *root = cJSON_CreateObject(), *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "type", "event");
+    cJSON_AddStringToObject(root, "event", "task.status");
+    cJSON_AddItemToObject(root, "payload", payload);
+    cJSON_AddStringToObject(payload, "status", code);
+    cJSON_AddStringToObject(payload, "reply_to_message_id", parent);
+    on_event(root);
+    cJSON_Delete(root);
+}
+static void others_status_and_late_play() {
+    detach();   /* another request finishing doesn't end the wait for this one */
+    status_event("someone-else", "completed");
+    assert(s_pending.busy);
+    pending_expire(clock_us + PENDING_IDLE_US + 1);
+    assert(s_pending.active);
+    status_event("note", "completed");   /* its own does */
+    assert(!s_pending.busy);
+    detach();   /* a row held past the cap (a long rest, no connection) doesn't play */
+    event("message.assistant", "late", "note", "Too old");
+    clock_us += PENDING_US + 1;
+    fail_events = 0;
+    incoming_play(s_turn.gen + 1);
+    assert(!s_turn.nmsgs && s_turn.phase == P_IDLE && fail_events == 1 && !fail_text[0]);
+    assert(!s_pending.active && !s_pending.replies && !s_incoming);
+}
+static void chained_and_mid_stream_replies() {
+    detach();   /* a reply to the request's reply belongs to it too */
+    event("message.assistant", "a", "note", "First");
+    event("message.assistant", "b", "a", "Then this");
+    event("message.assistant", "c", "elsewhere", "Not this");
+    assert(cJSON_GetArraySize(s_pending.replies) == 2);
+    event("delta.message_start", "d");   /* starts streaming before the late turn does */
+    event("delta.text_append", "d", "", "First ");
+    incoming_play(s_turn.gen + 1);
+    assert(s_turn.nmsgs == 2 && !strcmp(s_turn.msgs[1].id, "b"));
+    event("delta.text_append", "d", "", "second");   /* only its end: wait for the whole row */
+    event("delta.message_done", "d");
+    assert(s_turn.nmsgs == 2);
+    event("message.assistant", "d", "note", "First second");
+    assert(s_turn.nmsgs == 3 && s_turn.msgs[2].done && s_turn.msgs[2].len == 12);
+    event("delta.message_start", "e");   /* one that starts during the late turn streams as usual */
+    event("delta.text_append", "e", "", "More");
+    assert(s_turn.nmsgs == 4 && s_turn.msgs[3].len == 4);
+}
+static void held_rows_outlive_a_newer_request() {
+    detach();   /* request A: its reply is held, then a press comes first */
+    event("message.assistant", "a1", "note", "A's answer");
+    assert(s_pending.replies);
+    begin();   /* request B, which Muse is also still working on */
+    strlcpy(s_turn.user_ids[0], "b", sizeof(s_turn.user_ids[0]));
+    strlcpy(s_turn.user_ids[1], "b", sizeof(s_turn.user_ids[1]));
+    status("working");
+    clock_us += DETACH_US + 1;
+    check_turn();
+    settle();
+    assert(s_pending.active && !strcmp(s_pending.ids[0], "b") && s_pending.replies);
+    event("message.assistant", "b1", "b", "B's answer");
+    event("message.assistant", "a2", "note", "Not A's any more");   /* A is no longer remembered */
+    incoming_play(s_turn.gen + 1);
+    assert(s_turn.nmsgs == 2 && !strcmp(s_turn.msgs[0].id, "a1") && !strcmp(s_turn.msgs[1].id, "b1"));
+    assert(!strcmp(s_turn.user_ids[0], "b") && !strcmp(s_turn.user_ids[1], "b"));
+}
+/* A numbered event: message rows are numbered apart from live deltas. */
+static void numbered(const char *kind, const char *id, const char *parent, int seq, const char *field,
+                     const char *text, bool padded = false) {
+    cJSON *root = cJSON_CreateObject(), *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "type", "event");
+    cJSON_AddStringToObject(root, "event", kind);
+    cJSON_AddNumberToObject(root, "seq", seq);
+    cJSON_AddItemToObject(root, "payload", payload);
+    cJSON_AddStringToObject(payload, "message_id", id);
+    if (parent[0]) cJSON_AddStringToObject(payload, "reply_to_message_id", parent);
+    cJSON_AddStringToObject(payload, field, text);
+    if (padded) cJSON_AddStringToObject(payload, "padding", "unused by playback");
+    on_event(root);
+    cJSON_Delete(root);
+}
+static void late_rows_by_their_own_order_and_content() {
+    detach();
+    s_incoming = false;
+    numbered("delta.text_append", "live", "", 1150, "text", "Streaming elsewhere");
+    /* The finished row, numbered in the chat's order (below the live one), with content only. */
+    numbered("message.assistant", "late", "note", 977, "content", "Answer", true);
+    assert(s_incoming.exchange(false) && cJSON_GetArraySize(s_pending.replies) == 1);
+    cJSON *row = cJSON_GetArrayItem(s_pending.replies, 0);
+    assert(cJSON_GetArraySize(row) == 3 && !cJSON_GetObjectItem(row, "padding"));
+    assert(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(row, "display_text")), "Answer"));
+    numbered("message.assistant", "again", "note", 977, "content", "A replayed row");   /* same number: dropped */
+    assert(cJSON_GetArraySize(s_pending.replies) == 1);
+    /* A long answer keeps only what a turn keeps. */
+    static char longer[TEXT_MAX + 100];
+    memset(longer, 'x', sizeof(longer) - 1);
+    numbered("message.assistant", "long", "note", 978, "display_text", longer);
+    row = cJSON_GetArrayItem(s_pending.replies, 1);
+    assert(row && strlen(cJSON_GetStringValue(cJSON_GetObjectItem(row, "display_text"))) == TEXT_MAX - 1);
+    /* The message id may come on the event rather than in its payload; one too long to keep is ignored. */
+    cJSON *line = cJSON_Parse("{\"type\":\"event\",\"event\":\"message.assistant\",\"message_id\":\"outer\","
+                              "\"payload\":{\"reply_to_message_id\":\"note\",\"display_text\":\"Finished\"}}");
+    on_event(line);
+    cJSON_Delete(line);
+    char oversized[100];
+    memset(oversized, 'i', sizeof(oversized) - 1);
+    oversized[sizeof(oversized) - 1] = '\0';
+    numbered("message.assistant", oversized, "note", 979, "display_text", "Too long an id");
+    assert(cJSON_GetArraySize(s_pending.replies) == 3);
+    incoming_play(s_turn.gen + 1);
+    assert(s_turn.nmsgs == 3 && !strcmp(s_turn.msgs[0].id, "late") && s_turn.msgs[0].done);
+    assert(s_turn.msgs[0].len == 6 && s_turn.msgs[1].done && !strcmp(s_turn.msgs[2].id, "outer"));
+}
 int main(int argc, char **argv) {
     assert(argc == 2);
     switch (atoi(argv[1])) {
@@ -343,6 +717,21 @@ int main(int argc, char **argv) {
     case 15: typed_reply_at_cap(true, false); break;
     case 16: typed_reply_at_cap(true, true); break;
     case 17: typed_reply_at_cap(false, false); break;
+    case 21: chat_request(true); break;
+    case 22: chat_request(false); break;
+    case 23: detaches_only_while_muse_works(); break;
+    case 24: late_reply_matched_by_its_request(); break;
+    case 25: pending_is_forgotten(); break;
+    case 26: played_messages_are_not_replayed(); break;
+    case 27: held_rows_outlive_a_newer_request(); break;
+    case 28: others_status_and_late_play(); break;
+    case 29: chained_and_mid_stream_replies(); break;
+    case 30: late_rows_by_their_own_order_and_content(); break;
+#if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
+    case 18: typed_turns_replace_the_review(); break;
+    case 19: review_keeps_the_whole_reply(); break;
+    case 20: review_keeps_caption_pace(); break;
+#endif
     default: return 2;
     }
 }
@@ -357,14 +746,35 @@ int main(int argc, char **argv) {
             [*shlex.split(os.environ.get('CXX', 'c++')), '-std=gnu++17', *flags,
              str(out / 'session.cpp'), str(out / 'cjson.o'), '-o', str(out / 'session')],
         ]
+        # The Watcher keeps whole replies for review: the same handlers, with the
+        # real review store and fake FreeRTOS/heap headers.
+        stubs = out / 'watcher'
+        (stubs / 'freertos').mkdir(parents=True)
+        (stubs / 'esp_err.h').write_text('typedef int esp_err_t;\n#define ESP_OK 0\n#define ESP_ERR_NO_MEM 1\n')
+        (stubs / 'esp_heap_caps.h').write_text(
+            '#include <stdlib.h>\n#define MALLOC_CAP_SPIRAM 1\n#define MALLOC_CAP_8BIT 2\n'
+            '#define heap_caps_malloc(n, caps) malloc(n)\n')
+        (stubs / 'freertos/FreeRTOS.h').write_text('#define portMAX_DELAY 0\n')
+        (stubs / 'freertos/semphr.h').write_text(
+            'typedef int SemaphoreHandle_t;\n#define xSemaphoreCreateMutex() 1\n'
+            '#define xSemaphoreTake(lock, wait) ((void)0)\n#define xSemaphoreGive(lock) ((void)0)\n')
+        watcher = ['-DCONFIG_MUSE_BOARD_SENSECAP_WATCHER=1', '-I', str(stubs), '-include', str(ROOT / 'tests/host_compat.h')]
+        commands += [
+            [*shlex.split(os.environ.get('CC', 'cc')), '-std=gnu11', *flags, *watcher,
+             '-c', str(ROOT / 'components/muse/muse_review.c'), '-o', str(out / 'review.o')],
+            [*shlex.split(os.environ.get('CXX', 'c++')), '-std=gnu++17', *flags, *watcher,
+             str(out / 'session.cpp'), str(out / 'cjson.o'), str(out / 'review.o'), '-o', str(out / 'session-watcher')],
+        ]
         for command in commands:
             result = subprocess.run(command, capture_output=True, text=True)
             if result.returncode:
                 raise AssertionError(result.stdout + result.stderr)
         cls.binary = out / 'session'
+        cls.watcher_binary = out / 'session-watcher'
 
-    def run_case(self, case):
-        result = subprocess.run([str(self.binary), str(case)], capture_output=True, text=True)
+    def run_case(self, case, watcher=False):
+        binary = self.watcher_binary if watcher else self.binary
+        result = subprocess.run([str(binary), str(case)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_rejected_deltas_do_not_emit_or_complete_voice_or_typed_replies(self):
@@ -411,3 +821,47 @@ int main(int argc, char **argv) {
         for name, case in [('finished idle', 15), ('finished busy', 16), ('streaming', 17)]:
             with self.subTest(reply=name):
                 self.run_case(case)
+
+    def test_watcher_rejected_deltas_and_parents_are_unchanged(self):
+        for case in (0, 1, 2):
+            with self.subTest(case=case):
+                self.run_case(case, watcher=True)
+
+    def test_watcher_review_replaces_each_typed_or_spoken_turn(self):
+        self.run_case(18, watcher=True)
+
+    def test_watcher_review_keeps_full_final_and_long_streamed_reply(self):
+        self.run_case(19, watcher=True)
+
+    def test_watcher_review_keeps_the_caption_pace_inside_the_turn_cap(self):
+        self.run_case(20, watcher=True)
+
+    def test_dictated_turns_name_the_device_and_typed_turns_do_not(self):
+        for watcher in (False, True):
+            for name, case in [('dictated', 21), ('typed', 22)]:
+                with self.subTest(turn=name, watcher=watcher):
+                    self.run_case(case, watcher=watcher)
+
+    def test_slow_reply_detaches_only_while_muse_says_it_is_working(self):
+        self.run_case(23)
+
+    def test_late_reply_is_the_row_naming_the_request_and_plays_once(self):
+        self.run_case(24)
+
+    def test_pending_request_is_forgotten_when_muse_stops_or_after_the_cap(self):
+        self.run_case(25)
+
+    def test_messages_the_turn_played_are_not_announced_again(self):
+        self.run_case(26)
+
+    def test_held_rows_still_play_after_a_newer_request_is_remembered(self):
+        self.run_case(27)
+
+    def test_other_requests_status_and_overdue_rows_do_not_count(self):
+        self.run_case(28)
+
+    def test_late_reply_row_numbered_below_live_events_content_only_or_envelope_id_is_held(self):
+        self.run_case(30)
+
+    def test_late_turn_takes_chained_rows_and_never_half_a_message(self):
+        self.run_case(29)

@@ -13,7 +13,7 @@ Use this skill when the user's paired Muse Gadget is a WeatherXM WG1200 (`muse-g
 
 ## Identify the Device
 
-- Confirm `link.register` / device capabilities list `muse-gadget-wxm-wg1200` (or `WeatherXM WG1200`) with `sensors.read`, `display.draw_file`, `wg1200.notify`, and `wg1200.boot_weatherxm`.
+- Confirm `link.register` / device capabilities list `muse-gadget-wxm-wg1200` (`WeatherXM WG1200`) with `sensors.read`, `display.draw_file`, `wg1200.notify`, and `device.boot_weatherxm`.
 - Note that the WG1200 has a `480x480` touchscreen, a top button, and a passive alert buzzer, **but no microphone**. Users interact from the Muse app or from one-tap actions on the WG1200 touchscreen.
 
 ## Prerequisites
@@ -25,10 +25,10 @@ Read and follow the Home Link networking and safety rules in `~/docs/devices/hom
 
 ## Workflow
 
-1. **Read local microclimate (`sensors.read`).**
-   - `outdoor`: `fresh` (`true` when a LoRa packet arrived recently), `age_s`, `temperature_c`, `humidity_pct`, `wind_speed_mps`, `wind_gust_mps`, `wind_dir_deg`, `rain_rate_mm_h`, `rain_daily_mm`, `uv_index`, `solar_wm2`, `battery_low`, `rssi_dbm`, `snr_db`, and `packets`.
-   - `indoor`: `available`, `pressure_hpa`, and `temperature_c` from the console's Bosch BMP390. Use `indoor.pressure_hpa` for barometric pressure and pressure-trend analysis; treat `indoor.temperature_c` as console/enclosure temperature (warmed slightly by the LCD), not room ambient air.
-   - Report active rain only when `rain_rate_mm_h > 0`; `rain_daily_mm` is cumulative since reset/day boundary and stays positive after rain ends.
+1. **Read local microclimate (`sensors.read`).** Each metric object reports `{ "value": <number>, "unit": "<unit>", "age_s": <seconds> }`:
+   - **Outdoor (`SX1262` LoRa from `WS1001`/`WS1300`):** `outdoor_temperature` (`C`), `outdoor_humidity` (`%`), `wind_speed` (`m/s`), `wind_gust` (`m/s`), `wind_direction` (`deg`), `rain_rate` (`mm/h`), `rain_daily` (`mm`), `rain_accumulated` (`mm`), `uv_index` (`UVI`), `illuminance` (`lx`), `solar_irradiance` (`W/m2`), `station_battery` (`mV`), `lora_rssi` (`dBm`), and `lora_snr` (`dB`), plus `lora_radio` (`sx1262_detected`, `region`, `freq_hz`, `rx_packets_total`, `rx_packets_valid`, `station_model`, `station_id`).
+   - **Indoor (`BMP390`):** `barometric_pressure` (`hPa`) and `gateway_temperature` (`C`). Use `barometric_pressure` for pressure and pressure-trend analysis; treat `gateway_temperature` as console/PCB enclosure temperature warmed by the LCD, not room ambient air.
+   - Report active rain only when `rain_rate.value > 0`; `rain_daily.value` is cumulative since reset/day boundary and stays positive after rain ends.
 2. **Optional LAN sky-camera verification.** When asked to inspect the sky or combine a camera view with station telemetry, fetch a snapshot from the user's approved LAN camera over the Home Link tunnel directly into the VM (preferring sub-stream JPEGs such as Thingino `/x/ch1.jpg?token=...` for speed, or `-rtsp_transport tcp` single-frame capture).
 3. **Render onto the `480x480` screen (`display.draw_file`).**
    - Always output a **`480x480` baseline (non-progressive) JPEG** on the VM (`Pillow` with `progressive=False` or `ffmpeg`/`jpegtran` without `-progressive`) before calling `display.draw_file`.
@@ -37,13 +37,13 @@ Read and follow the Home Link networking and safety rules in `~/docs/devices/hom
 
 ## Verify the Result
 
-- Check `outdoor.fresh` and `outdoor.age_s` before stating current outdoor conditions; if `outdoor.fresh` is `false` or no packet has been received since boot, say the outdoor LoRa array is not currently reporting rather than substituting an internet forecast silently.
-- Confirm `display.draw_file` returns `ok: true` with `width: 480`, `height: 480`.
+- Check `outdoor_temperature.age_s` and `lora_radio.rx_packets_valid` before stating current outdoor conditions; if outdoor metrics are absent (no LoRa packet received yet) or `age_s` is stale (`> 300` s), say the outdoor LoRa array is not currently reporting rather than substituting an internet forecast silently.
+- Confirm `display.draw_file` returns `ok: true`.
 
 ## Limits
 
-- Never invoke `wg1200.boot_weatherxm` unless the user explicitly asks to reboot the console out of Muse and back into stock WeatherXM firmware.
-- Do not claim calibrated WMO station siting or sea-level pressure unless station elevation correction is applied (`indoor.pressure_hpa` is raw station pressure at the console's altitude).
+- Never invoke `device.boot_weatherxm` unless the user explicitly asks to reboot the console out of Muse and back into stock WeatherXM firmware.
+- Do not claim calibrated WMO station siting or sea-level pressure unless station elevation correction is applied (`barometric_pressure` is raw station pressure at the console's altitude).
 - Do not poll LAN cameras or beep the buzzer repeatedly in the background without an explicit user schedule.
 
 ## Sources

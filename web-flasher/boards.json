@@ -12,8 +12,7 @@
       "usbVendorId": 6790
     },
     "noErase": true,
-    "dualBoot": true,
-    "note": "<strong>Safe Dual-Boot (WeatherXM Untouched):</strong> When the browser port picker opens, select <strong><code>USB JTAG/serial debug unit</code></strong> (<code>cu.usbmodem*</code>) for fast (~20s) driverless flashing (both <code>USB JTAG/serial debug unit</code> and <code>USB Serial</code> are supported). Flashes only the dual-boot partition table (<code>0xC000</code>), <code>otadata</code> (<code>0x13000 → ota_1</code>), and the RSA-3072 signed Muse firmware into <code>ota_1</code> (<code>0x820000</code>). Your stock WeatherXM bootloader, Secure Boot keys, certificates (<code>esp_secure_cert</code>), NVS, and WeatherXM firmware (<code>factory</code> / <code>ota_0</code>) are <strong>never</strong> modified or erased. Return to WeatherXM anytime via <strong>Settings → WeatherXM</strong> on the touchscreen, holding the <strong>top button for 10 seconds</strong>, or clicking <strong>Return WG1200 to WeatherXM</strong> below."
+    "dualBoot": true
   },
   {
     "board": "devkit",
@@ -33,6 +32,20 @@
   {
     "board": "muse-m5stack-cores3",
     "name": "M5Stack CoreS3",
+    "usb": [
+      "303a:1001"
+    ]
+  },
+  {
+    "board": "muse-waveshare-s3-175c",
+    "name": "Waveshare ESP32-S3-Touch-AMOLED-1.75C",
+    "usb": [
+      "303a:1001"
+    ]
+  },
+  {
+    "board": "muse-waveshare-s3-185b",
+    "name": "Waveshare ESP32-S3-Touch-LCD-1.85B",
     "usb": [
       "303a:1001"
     ]
@@ -60,8 +73,7 @@
     "pacing": {
       "chunk": 32,
       "factor": 2
-    },
-    "note": "Pick the <strong>second</strong> USB Dual_Serial port, the one with the higher number; the first is the camera chip. Flashing is slow on this board, about 4 minutes; keep the tab in front. Muse overwrites the Watcher's factory data, which is unique to each device, so <strong>back it up first</strong> and don't erase the device: <code>esp32/tools/muse/paced_esptool.py --chip esp32s3 -p PORT read-flash 0x9000 0x32000 nvsfactory.bin</code>"
+    }
   },
   {
     "board": "sensecap-indicator",
@@ -80,7 +92,6 @@
     "name": "Seeed Studio reTerminal Sticky (3.97\" e-paper, experimental)",
     "usb": [
       "1a86:55d3"
-    ],
-    "note": "Flashing takes about 3 minutes; keep the tab in front. Muse replaces Seeed's factory firmware. To go back to it later, back up the flash first: <code>python -m esptool --chip esp32s3 -p PORT read-flash 0 ALL sticky-factory.bin</code>"
+    ]
   }
 ]
