@@ -1,6 +1,6 @@
 {
   "name": "Muse (WeatherXM WG1200 Dual-Boot)",
-  "version": "999.0.0+8077b19",
+  "version": "0.2.0+da9a1ba",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 0,
   "min_flash_bytes": 15929344,
