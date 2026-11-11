@@ -275,19 +275,17 @@ When both `access_token` and `refresh_token` are provided with `"token_type": "d
 
 The reset waits for the release, so holding on to 10 s never resets Muse.
 
-### Fetching Camera Snapshots and Other LAN URLs (`lan.fetch`)
+### Reaching LAN Cameras and Local Devices Over the Home Link Tunnel
 
-Muse's VM can't reach the home network, so the WG1200 fetches for it. `lan.fetch` (`main/lan_fetch.c`, `CONFIG_HOMEHUB_LAN_FETCH`, on by default here) GETs an `http://` or `https://` URL whose host is a private IPv4 address, streams the body into PSRAM (`max_bytes`, default 1 MiB, up to 2 MiB) and returns `bytes`, `sha256`, `content_type`, `jpeg`, `http_status` and `fetch_ms`, with the body either written to the VM (`POST /fs/write`) or, when the VM refuses that route to the device's credentials, inline as `data_base64` (up to 512 KB).
+`sdkconfig.wxm-wg1200` enables the standard Muse Home Link L3 tunnel (`CONFIG_HOMEHUB_TUNNEL=y`, lwIP IPv4 NAPT at `10.42.0.1` over Noise stream 2 in [`noise_tunnel.cpp`](../main/noise_tunnel.cpp) and [`tunnel_netif.c`](../main/tunnel_netif.c)), with TX/RX packet pools pre-allocated in the WG1200's 8 MB octal PSRAM.
 
-| Parameter | Notes |
-|---|---|
-| `url` | Required. A token in the query or `user:pass@` works; neither is logged or returned |
-| `username`, `password` | Basic or Digest login (`CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH` / `_DIGEST_AUTH` are on in `sdkconfig.wxm-wg1200`) |
-| `path` | File on the VM, relative to home (default `lan-fetch/latest.<ext>`) |
-| `max_bytes`, `timeout_ms` | 1024–2097152; 1000–60000 ms (default 15000) |
-| `delivery` | `auto` (default), `file` or `inline` |
-
-Thingino cameras answer their snapshot URL (`/x/ch1.jpg`) with a token in the query: Basic and Digest logins get `401` there. Tested on this board: a 255 KB JPEG in about 200 ms with Basic and Digest logins, Thingino 640×360 frames (about 25 KB) in about 90 ms, and free internal RAM steady at 77 KB across runs. `>lan.fetch {json}` on the USB console runs the same command for bench tests.
+1. **Discovery & IPv4 stability:** `device.discover` scans ARP, mDNS, SSDP and ONVIF WS-Discovery (`3702/udp`) from the WG1200 and returns private IPv4 addresses. Because the tunnel routes unicast IPv4 packets (not multicast `.local` mDNS), reserve a static DHCP lease on your router for any camera you pair with Muse.
+2. **Per-device user approval:** On first connection from Muse's VM to a LAN IPv4 address (`~/docs/devices/home_link.md`), the user approves that device once in the Muse app. Camera tokens and Basic/Digest credentials stay on the VM.
+3. **Capture & `480×480` display handoff:**
+   - Thingino cameras expose fast sub-stream JPEG snapshots at `/x/ch1.jpg?token=…` (~40–150 KB) and full-res snapshots at `/x/ch0.jpg?token=…` (plus `/image.jpg` with Basic/Digest auth).
+   - RTSP cameras work directly from the VM over TCP-interleaved transport (`ffmpeg -rtsp_transport tcp -frames:v 1`), which clamps TCP MSS cleanly inside `TUNNEL_MTU = 1280` without UDP packet drops.
+   - To fill the WG1200 panel without progressive-JPEG (`JDR_FMT3`) errors or `16:9` letterboxing, Muse crops/transcodes on the VM to a `480×480` **baseline** JPEG and renders it via `display.draw_file` (waking the display automatically if asleep).
+   - Ready-to-use skills live in [`skills/gadget-thingino-cameras/SKILL.md`](../../skills/gadget-thingino-cameras/SKILL.md) and [`skills/gadget-weatherxm-wg1200/SKILL.md`](../../skills/gadget-weatherxm-wg1200/SKILL.md).
 
 ### Returning to WeatherXM Firmware
 

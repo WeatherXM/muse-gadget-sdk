@@ -2029,7 +2029,11 @@ static void dither_gray4_565(uint16_t *px, int w, int h, int16_t *err)
 
 void muse_ui_image_done(void)
 {
-    if (!s_ready || muse_ui_image_bits() != 2) {
+    if (!s_ready) {
+        return;
+    }
+    muse_state_poke();
+    if (muse_ui_image_bits() != 2) {
         return;   /* a colour panel shows each rectangle as it comes */
     }
     int16_t *err = malloc(2 * (size_t)(s_w + 2) * sizeof(int16_t));
@@ -2059,7 +2063,9 @@ bool muse_ui_image_draw(int x, int y, int w, int h, const uint16_t *pixels)
             xSemaphoreGive(s_image_mutex);
             return false;
         }
-        /* Now, not when it's shown: asleep, the display may be paused (muse_input.c). */
+    }
+    /* Now, not when it's shown: asleep, the display may be paused (muse_input.c). */
+    if (muse_state_asleep()) {
         muse_state_set_asleep(false);
     }
     const uint8_t *src = (const uint8_t *)pixels;

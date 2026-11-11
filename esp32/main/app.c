@@ -58,7 +58,6 @@
 #include "vm_connect.h"
 #include "noise_control.h"
 #include "image_fetch.h"
-#include "lan_fetch.h"
 #include "noise_tunnel.h"
 #include "led_status.h"
 #include "button.h"
@@ -2016,11 +2015,6 @@ static cJSON *on_ws_command(
     }
     if (strcmp(command, "wg1200.notify") == 0) {
         return wg1200_notify_command(params);
-    }
-#endif
-#if CONFIG_HOMEHUB_LAN_FETCH
-    if (strcmp(command, "lan.fetch") == 0) {
-        return lan_fetch_command(params, request_id, session_generation);
     }
 #endif
     if (strcmp(command, "device.reset_vm") == 0) {

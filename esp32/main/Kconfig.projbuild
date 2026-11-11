@@ -318,21 +318,6 @@ menu "ESP32 Device SDK"
             boards with display.draw_file, always have it. Costs a few KB
             of flash and a small queue in RAM.
 
-    config HOMEHUB_LAN_FETCH
-        bool "lan.fetch: fetch a home-network URL into a file on Muse's VM"
-        depends on HOMEHUB_DAEMON_REQUESTS && SPIRAM
-        default y if MUSE_BOARD_WXM_WG1200
-        default n
-        help
-            Adds the lan.fetch command: the gadget GETs an http:// or
-            https:// URL on its own home network (a private IPv4 address
-            only), such as a camera's JPEG snapshot, and writes the body
-            to a file on the user's VM over POST /fs/write. Muse can't
-            reach the home network from its VM; this lets it read local
-            devices through the gadget. Basic and Digest logins work,
-            from the URL's user:password@ or the username and password
-            parameters. The body is held in PSRAM, up to 2 MiB.
-
     config HOMEHUB_DEV_BUILD
         bool "Dev build (dev signing key + dev-only affordances)"
         default y

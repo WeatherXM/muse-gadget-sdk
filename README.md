@@ -20,16 +20,16 @@ limitations under the License.
 
 <p align="center">
   <b>Most AI agents can tell you the forecast. This one looks at the sky outside your window—and measures the actual weather on your roof.</b><br>
-  Muse gets live rooftop sensors (<code>sensors.read</code>), sky-camera snapshots from your LAN without port forwarding (<code>lan.fetch</code>) and a <code>480×480</code> canvas (<code>display.draw_file</code>), in a reversible dual-boot (<code>ota_1</code>) that leaves stock WeatherXM untouched.<br>
+  Muse gets live rooftop sensors (<code>sensors.read</code>), sky-camera snapshots from your LAN without port forwarding (over the Home Link tunnel, with per-device approval) and a <code>480×480</code> canvas (<code>display.draw_file</code>), in a reversible dual-boot (<code>ota_1</code>) that leaves stock WeatherXM untouched.<br>
   <a href="https://weatherxm.com/product/wb1200-wifi-d1/"><b>WeatherXM D1 Wi-Fi Station (<code>WS1001</code> + <code>WG1200</code>): $50 off with <code>MUSE50</code> → $149</b></a> · <a href="esp32/devices/wxm-wg1200.md"><b>Hardware & Dual-Boot Guide →</b></a> · <a href="https://muse.weatherxm.com"><b>⚡ Install at muse.weatherxm.com</b></a>
 </p>
 
 | [WeatherXM D1 (`WS1001` + `WG1200`)](https://weatherxm.com/stations/d1-wifi/) + a LAN camera | `WG1200` running Muse (`ota_1` dual-boot) |
 |:---:|:---:|
 | <a href="https://weatherxm.com/stations/d1-wifi/"><img src=".github/images/weatherxm-d1-station-camera.jpg" width="410" alt="WeatherXM D1 outdoor solar station and WG1200 4-inch touchscreen gateway, with a Sonoff IP camera running Thingino"></a> | <img src=".github/images/wg1200-muse-desk.jpg" width="410" alt="WeatherXM WG1200 on desk running Muse Gadget firmware connected to Muse VM"> |
-| A solar 8-sensor array (`WS1001` / `WS1300`) reports every ~20 s over Sub-GHz LoRa (up to 1 km) to the 4" `WG1200` console. Any camera with an HTTP snapshot URL works, here a Sonoff on [Thingino](https://github.com/themactep/thingino-firmware). | Paired to the Muse VM over an encrypted Noise session: it answers weather questions (`sensors.read`), fetches camera frames (`lan.fetch`) and draws `480×480` cards. |
+| A solar 8-sensor array (`WS1001` / `WS1300`) reports every ~20 s over Sub-GHz LoRa (up to 1 km) to the 4" `WG1200` console. Any camera with an HTTP snapshot or TCP RTSP stream works, here a Sonoff on [Thingino](https://github.com/themactep/thingino-firmware). | Paired to the Muse VM over an encrypted Noise session: it answers weather questions (`sensors.read`), bridges approved LAN cameras over the Home Link tunnel and draws `480×480` cards. |
 | <img src=".github/images/sky-camera-frame-480.jpg" width="480" alt="Rooftop sky camera frame over Athens, 1 November 2026 16:56: broken cumulus with blue gaps and low sun, weather station masts in the foreground"> | <img src=".github/images/wg1200-sky-frame.jpg" width="410" alt="The same sky camera frame drawn on the WG1200 screen by Muse with display.draw_file"> |
-| **What Muse sees:** the rooftop camera's 1920×1080 frame, fetched through the `WG1200` (~150 KB in ~200 ms) and analysed next to wind, rain and irradiance. | **What it sends back:** the same frame, drawn with `display.draw_file`. The camera never leaves the home network and no ports are opened. |
+| **What Muse sees:** the rooftop camera's frame, pulled straight into Muse's VM over the `WG1200` Home Link tunnel after one-time device approval and analysed next to wind, rain and irradiance. | **What it sends back:** a `480×480` baseline JPEG composed on the VM and drawn with `display.draw_file`. The camera never leaves the home network and no ports are opened. |
 | <img src=".github/images/wg1200-card-cyberpunk.jpg" width="410" alt="The WG1200 on a desk showing a cyberpunk-neon Athens weather card Muse generated: 21.6 °C, humidity 64%, pressure 1009 hPa, wind, rain and UV"> | <img src=".github/images/wg1200-card-diorama-480.jpg" width="410" alt="A 480x480 isometric-diorama Athens weather card Muse generated: a rooftop weather station beside the Acropolis, 18.4 °C, humidity 83%, pressure 1009 hPa"> |
 | **The screen is Muse's canvas:** cards, frames, charts or alerts it composes in its VM and draws with `display.draw_file` / `display.draw_url`. | **Any style:** each card is generated from the latest `sensors.read` values. Swipe down for today's forecast scored against them, or ask Muse for a style. |
 
@@ -44,29 +44,28 @@ limitations under the License.
 
 Most AI hardware is a bare board on a USB cable, and most desk displays show static widgets. The `WG1200` gives Muse four things in one console:
 
-- **Ground truth and eyes on your LAN.** Live rooftop telemetry (`sensors.read`), the devices on your Wi-Fi (`device.discover`), and fetches from them (`lan.fetch`): a camera's view of the sky, an inverter's output, a hub's state. See [Eyes on the sky](#eyes-on-the-sky-cameras--rooftop-sensors).
+- **Ground truth and eyes on your LAN.** Live rooftop telemetry (`sensors.read`), the devices on your Wi-Fi (`device.discover`), and per-device user-approved access to them over the Home Link tunnel: a camera's view of the sky, an inverter's output, a hub's state. See [Eyes on the sky](#eyes-on-the-sky-cameras--rooftop-sensors).
 - **A `480×480` canvas, not a dashboard.** Muse draws whatever it composes (`display.draw_file`, `display.draw_url`) and pushes alert cards with a chime (`wg1200.notify`).
 - **A reversible dual-boot.** Muse installs into `ota_1` (`0x820000`) with its own `muse_nvs`; WeatherXM firmware, station identity, certificates and NVS are never touched. Hold the top button 10 s to go back. Fits the **$199 Network Edition** ($149 with `MUSE50`) and the **$299 Open Edition** ($249).
 - **Sub-GHz LoRa.** The built-in `SX1262` receives `WS1001` / `WS1300` stations up to ~1 km away; with Meshtastic / MeshCore multi-hop mesh ([WeatherXM D2 Mesh](https://www.crowdsupply.com/weatherxm/weatherxm-d2-mesh)), telemetry and agent messages can travel hundreds of km off-grid.
 
 ### What Muse can do on the `WG1200` (`wxm-wg1200`)
 
-| Command | What it does |
+| Command / Channel | What it does |
 |---|---|
 | `sensors.read` | Outdoor temperature, humidity, wind speed, gust and direction, UV, irradiance (`W/m²`), light, rain rate (`mm/h`) and daily rain (`mm`, kept across reboots), plus indoor pressure (`hPa`). Locks onto your own station so neighbours' never mix in. |
-| `display.draw_file` · `display.draw_url` · `display.show_animation` | Draws `480×480` cards, charts or images on demand. |
+| `display.draw_file` · `display.draw_url` · `display.show_animation` | Draws `480×480` baseline JPEG cards, sky-camera views or charts on demand, waking the screen if asleep. |
 | `wg1200.notify` | Pushes a dismissible alert card, optionally with a buzzer chime. |
-| `device.discover` | Finds devices on your Wi-Fi (ARP, mDNS, SSDP, WS-Discovery and more). |
-| `lan.fetch` | Fetches a URL on your home network that the cloud VM can't reach, such as a camera snapshot or a local JSON API ([details](#cameras--home-network-devices-lanfetch)). |
-| `device.boot_weatherxm` | Reboots into stock WeatherXM. |
+| `device.discover` + Home Link tunnel | Finds devices on your Wi-Fi (ARP, mDNS, SSDP, WS-Discovery) and routes approved IPv4 HTTP / TCP traffic between Muse's VM and local cameras or APIs ([details](#cameras--home-network-devices-home-link-tunnel)). |
+| `wg1200.boot_weatherxm` | Reboots into stock WeatherXM when you ask. |
 
-On the screen, **swipe down** (or tap **Draw Weather Card**) for today's hourly forecast, picked by your own station: Muse treats the live readings as ground truth, fetches hourly forecasts for the station's GPS position (or Athens until a fix arrives) from several models, scores each against current conditions and draws the best fit as a `480×480` card in a random style (Ukiyo-e, Studio Ghibli, Art Deco, Synthwave, 16-bit RPG, Bauhaus and more), naming the models on it. Tell Muse your preferences once (*"my favourite provider is X, show the next 3 hours and tomorrow, in Ukiyo-e"*) and every swipe uses them instead of the defaults. To change the request itself without reflashing, edit the **Swipe-down card prompt** on tab 2 of [muse.weatherxm.com](https://muse.weatherxm.com) (or send `>card.prompt=…` on the USB console, `card.prompt=…` over Companion BLE); `{weather}`, `{location}` and `{style}` are filled on the gateway. It's also a quick check that Muse is connected. The console has no mic, so one-tap actions (**Hyperlocal Brief**, **Draw Weather Card**, **LAN Smart Home Check**) send your live weather with the request and stream Muse's answer on screen.
+On the screen, **swipe down** (or tap **Draw Weather Card**) for today's hourly forecast, picked by your own station: Muse treats the live readings as ground truth, fetches hourly forecasts for the station's GPS position (or Athens until a fix arrives) from several models, scores each against current conditions and draws the best fit as a `480×480` card in a random style (Ukiyo-e, Studio Ghibli, Art Deco, Synthwave, 16-bit RPG, Bauhaus and more), naming the models on it. Tell Muse your preferences once (*"my favourite provider is X, show the next 3 hours and tomorrow, in Ukiyo-e"*) and every swipe uses them instead of the defaults. To change the request itself without reflashing, edit the **Swipe-down card prompt** on tab 2 of [muse.weatherxm.com](https://muse.weatherxm.com) (or send `>card.prompt=…` on the USB console, `card.prompt=…` over Companion BLE); `{weather}`, `{location}` and `{style}` are filled on the gateway. It's also a quick check that Muse is connected. The console has no mic, so one-tap actions (**Hyperlocal Brief**, **Draw Weather Card**, **Sky Camera Check**, **LAN Smart Home Check**) send your live weather with the request and stream Muse's answer on screen.
 
 ---
 
 ## Eyes on the sky: cameras + rooftop sensors
 
-A cloud agent can't see your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor cloud or a Raspberry Pi. With `lan.fetch` the `WG1200` fetches for it. Muse asks for `http://<camera>/snapshot.jpg`; the ESP32-S3 GETs it on the LAN (~200 ms), checks its SHA-256 in PSRAM and returns it over the encrypted session it already holds.
+A cloud agent can't normally see your home network: its VM has no route to your LAN, and the usual workarounds are port forwarding, a vendor cloud or a Raspberry Pi. On the `WG1200`, the built-in **Home Link L3 tunnel** (`CONFIG_HOMEHUB_TUNNEL=y`, lwIP NAPT in 8 MB PSRAM) bridges Muse's VM onto your Wi-Fi—and **you approve each LAN device once** in the Muse app before Muse first connects to it. Muse pulls a snapshot (`curl`) or TCP-interleaved RTSP frame (`ffmpeg -rtsp_transport tcp`) directly into its VM, crops or composites a `480×480` baseline JPEG, and pushes it to the `WG1200` screen with `display.draw_file`.
 
 The same device holds time-aligned ground truth from the roof, so one turn can pair a sky frame with the latest LoRa readings to:
 
@@ -79,20 +78,19 @@ The same device holds time-aligned ground truth from the roof, so one turn can p
 
 | Works today | Next |
 |---|---|
-| Camera frames through the gateway (`lan.fetch`), tested with Thingino | Agents discovering and talking to each other (rendezvous) |
+| Camera frames over the Home Link tunnel, with per-device approval and Thingino / WG1200 skills | Agents discovering and talking to each other (rendezvous) |
 | Live station telemetry from the same device (`sensors.read`) | Signed frames and readings, so other agents can trust their source |
-| Analysis in Muse's VM, results drawn on the gateway's screen | Multi-camera cloud tracking, stereo cloud height, the nowcast service |
+| Analysis in Muse's VM, results drawn on the gateway's `480×480` screen | Multi-camera cloud tracking, stereo cloud height, the nowcast service |
 
-### Cameras & home-network devices (`lan.fetch`)
+### Cameras & home-network devices (Home Link tunnel)
 
-Ask Muse something like *"fetch my camera's snapshot with lan.fetch and show it with display.draw_file"*. The call is `{"url": "http://192.168.1.20/x/ch1.jpg?token=…"}`.
+Give Muse the [`gadget-thingino-cameras`](skills/gadget-thingino-cameras/SKILL.md) and [`gadget-weatherxm-wg1200`](skills/gadget-weatherxm-wg1200/SKILL.md) skills (or link this repo in chat) and ask *"check my Thingino sky camera, compare it with `sensors.read`, and draw it on the WG1200"*.
 
-- **Cameras:** any HTTP snapshot URL: Thingino (`/x/ch1.jpg?token=…`), Hikvision (`/ISAPI/Streaming/channels/101/picture`), Dahua and Amcrest (`/cgi-bin/snapshot.cgi`), Reolink (`/cgi-bin/api.cgi?cmd=Snap&channel=0`), Axis (`/axis-cgi/jpg/image.cgi`), ESP32-CAM (`/capture`). RTSP-only and cloud cameras work through [go2rtc](https://github.com/AlexxIT/go2rtc) (`/api/frame.jpeg?src=<cam>`); local JSON APIs work too.
-- **Logins:** a token in the query, `http://user:pass@host/…`, or `username` / `password` (Basic or Digest). Never logged or returned; results show `http://***@host/path?***`.
-- **Home network only:** the host must be, or resolve to, a private IPv4 address (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`).
-- **Returns** `bytes`, `sha256`, `content_type`, `jpeg`, `http_status`, `fetch_ms`, and either a file on your VM (`delivery: "file"`, via `POST /fs/write`) or, when the VM refuses that to the gadget's token as it does today, `data_base64` (`delivery: "inline"`, up to 512 KB).
-- **Options:** `max_bytes` (default 1 MiB, max 2 MiB), `timeout_ms` (default 15 s), `path` on the VM, `delivery` (`auto`, `file`, `inline`).
-- **Bench test:** `>lan.fetch {"url":"http://…"}` on the USB console prints `@lan.fetch {…}`.
+- **Discovery & addressing:** `device.discover` finds cameras via ARP, HTTP (`80/tcp`), RTSP (`554/tcp`), mDNS, SSDP and ONVIF WS-Discovery (`3702/udp`). Because the tunnel carries unicast IPv4 packets, Muse connects by IPv4—set a **DHCP reservation** on your router so the camera's IP and approval never drift.
+- **Per-device approval:** the first time Muse connects to a camera's IP, approve it in the Muse app (`~/docs/devices/home_link.md`). After that, even mic-less touchscreen taps (**Sky Camera Check**) run hands-free.
+- **Cameras & protocols:** HTTP snapshots—Thingino (`/x/ch1.jpg?token=…` fast sub-stream or `/x/ch0.jpg?token=…`, `/image.jpg`), Hikvision (`/ISAPI/Streaming/channels/101/picture`), Dahua/Amcrest (`/cgi-bin/snapshot.cgi`), Reolink (`/cgi-bin/api.cgi?cmd=Snap&channel=0`), Axis (`/axis-cgi/jpg/image.cgi`)—plus RTSP-only cameras directly from the VM with `ffmpeg -rtsp_transport tcp` (fitting cleanly inside the tunnel's `1280`-byte MTU) and local HTTP/JSON APIs.
+- **Credentials stay on the VM:** query tokens, Basic/Digest logins and cookies never pass through ESP32 command arguments or firmware logs.
+- **Full-bleed `480×480` rendering:** Muse crops/transcodes on the VM to a `480×480` **baseline** JPEG before calling `display.draw_file`, avoiding progressive-JPEG errors and `16:9` letterboxing on the ESP32-S3 JPEG decoder.
 
 ---
 

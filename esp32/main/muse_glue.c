@@ -32,7 +32,6 @@
 #include "ble_server.h"
 #include "config_store.h"
 #include "identity.h"
-#include "lan_fetch.h"
 #include "link_pairing.h"
 #include "noise_control.h"
 #include "sdk_token_console.h"
@@ -645,10 +644,9 @@ static void boot_task(void *arg) {
     vTaskDelete(NULL);
 }
 
-// The USB console's own commands, beyond Muse's: ">sdk_token=" and, with
-// CONFIG_HOMEHUB_LAN_FETCH, ">lan.fetch {json}".
+// The USB console's own commands, beyond Muse's: ">sdk_token=".
 static bool console_command(const char *line) {
-    return sdk_token_console_command(line) || lan_fetch_console(line);
+    return sdk_token_console_command(line);
 }
 
 void muse_glue_start(void) {

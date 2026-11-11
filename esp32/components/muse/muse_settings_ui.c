@@ -1556,6 +1556,15 @@ static void on_wx_ask_brief(lv_event_t *e)
         "Give a 2-sentence microclimate & forecast brief in chat (no wg1200.notify).");
 }
 
+static void on_wx_ask_skycam(lv_event_t *e)
+{
+    (void)e;
+    send_wg1200_prompt(
+        "Fetch a fresh snapshot from my approved LAN sky camera over the Home Link tunnel "
+        "(use device.discover if needed; if approval is waiting in the Muse app, tell me), "
+        "cross-check the sky with these readings, and draw a 480x480 baseline JPEG via display.draw_file.");
+}
+
 static void on_wx_ask_smarthome(lv_event_t *e)
 {
     (void)e;
@@ -1631,6 +1640,7 @@ static void build_weather_page(lv_obj_t *tile)
     note(list, "Ask Muse (Swipe down on Muse face for Weather Card)");
     button(list, "Hyperlocal Brief", COLOR_ACCENT, on_wx_ask_brief, NULL);
     button(list, "Draw Weather Card", COLOR_ACCENT, on_wx_ask_drawcard, NULL);
+    button(list, "Sky Camera Check", COLOR_ACCENT, on_wx_ask_skycam, NULL);
     button(list, "LAN Smart Home Check", COLOR_ACCENT, on_wx_ask_smarthome, NULL);
     note(list, "BMP390 Barometer + Outdoor SX1262 LoRa");
     s_wx_indoor_temp = info_row(list, "Gateway Temp");
