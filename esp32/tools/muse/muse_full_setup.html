@@ -1448,7 +1448,7 @@
       return host;
     }
 
-    async function runCompanionProvision({ includeWifi = false, accessToken = "" } = {}) {
+    async function runCompanionProvision({ includeWifi = false, accessToken = "", clearToken = false } = {}) {
       if (!museCmdChar) {
         log("Companion service (muse_ble) not available; skipping Companion commands.", "log-warn");
         return;
@@ -1457,7 +1457,7 @@
       const pass = el("wifiPass").value;
       const host = normalizeMuseHost(el("hatchHost").value);
       const vmId = el("vmId").value.trim();
-      const token = (accessToken || el("deviceAccessToken").value || el("webToken").value).trim();
+      const token = clearToken ? "" : (accessToken || el("deviceAccessToken").value || el("webToken").value).trim();
 
       if (includeWifi && ssid) {
         await sendCompanionCmd(`wifi.ssid=${ssid}`);
@@ -1469,7 +1469,9 @@
       if (vmId) {
         await sendCompanionCmd(`hatch.vm=${vmId}`);
       }
-      if (token) {
+      if (clearToken) {
+        await sendCompanionCmd("hatch.token=");
+      } else if (token) {
         await sendCompanionTokenChunked(token);
       }
       await readCompanionStatus();
@@ -1641,10 +1643,12 @@
 
       // Step 5: Configure Companion (muse_ble) BEFORE sending provision_v2
       // (Because provision_v2 triggers PAIR_THEN_RESTART 2s after auth_ok)
+      // Clear any standalone Companion hatch.token so Muse always uses Home Link's
+      // auto-refreshing 365-day token pair instead of a static copy.
       setStepState(5, "active");
       if (configureCompanionToo && museCmdChar) {
-        log("Step 5/7: Writing VM ID, Host, and Token to Companion (muse_ble) NVS...", "log-info");
-        await runCompanionProvision({ includeWifi: false, accessToken });
+        log("Step 5/7: Writing VM ID & Host to Companion (clearing standalone token so Home Link manages auth)...", "log-info");
+        await runCompanionProvision({ includeWifi: false, clearToken: true });
       } else {
         log("Step 5/7: Skipping Companion (muse_ble) step.", "log-info");
       }

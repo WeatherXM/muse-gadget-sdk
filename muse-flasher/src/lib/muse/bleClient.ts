@@ -74,6 +74,8 @@ export interface CompanionInputs {
   host: string;
   vmId: string;
   token: string;
+  /** Clear any standalone Companion token so Muse delegates to Home Link's auto-refreshed credentials. */
+  clearToken?: boolean;
 }
 
 export interface HomeLinkInputs {
@@ -485,7 +487,9 @@ export class MuseBleProvisionerClient {
     if (inputs.vmId) {
       await this.sendCompanionCmd(`hatch.vm=${inputs.vmId}`);
     }
-    if (inputs.token) {
+    if (inputs.clearToken) {
+      await this.sendCompanionCmd('hatch.token=');
+    } else if (inputs.token) {
       await this.sendCompanionToken(inputs.token);
     }
     await this.readCompanionStatus();
@@ -653,16 +657,22 @@ export class MuseBleProvisionerClient {
       this.cb.onStep(4, 'done');
 
       // Step 5: Companion before provision_v2, which restarts the device ~2 s after auth_ok.
+      // Clear any standalone Companion hatch.token so muse_chat_session always uses Home Link's
+      // auto-refreshing 365-day token pair instead of a static snapshot that goes stale.
       step = 5;
       this.cb.onStep(5, 'active');
       if (configureCompanionToo && this.museCmd) {
-        this.cb.onLog('info', 'Step 5/7: Writing VM ID, host and token to Companion (muse_ble) NVS...');
+        this.cb.onLog(
+          'info',
+          'Step 5/7: Writing VM ID & host to Companion (clearing standalone token so Home Link manages auth)...',
+        );
         await this.runCompanionProvision({
           ssid: inputs.ssid,
           password: inputs.password,
           host: inputs.host,
           vmId: inputs.vmId,
-          token: accessToken,
+          token: '',
+          clearToken: true,
         });
       } else {
         this.cb.onLog('info', 'Step 5/7: Skipping Companion (muse_ble).');

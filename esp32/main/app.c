@@ -1304,6 +1304,12 @@ static void on_provision(const char *ssid, const char *password,
         setup_fail_for_session("auth", "auth_failed", session_generation);
         goto done;
     }
+#if CONFIG_MUSE_ENABLED
+    if (muse_settings_hatch_token_len() > 0) {
+        ESP_LOGI(TAG, "clearing standalone Companion hatch.token so Muse uses Home Link credentials");
+        muse_settings_set_hatch_token("", false);
+    }
+#endif
 
     if (!require_provisioning_pairing_session(session_generation)) goto done;
     if (start_wifi_join_ota_if_requested(ota_url, ota_force, session_generation)) {

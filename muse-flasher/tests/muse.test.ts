@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { museNameForNodeId, nodeIdFromBleName, redactCompanionCommand } from '../src/lib/muse/bleClient';
+import {
+  MuseBleProvisionerClient,
+  museNameForNodeId,
+  nodeIdFromBleName,
+  redactCompanionCommand,
+} from '../src/lib/muse/bleClient';
 import {
   DIRECTION_D2M,
   DIRECTION_M2D,
@@ -147,6 +152,39 @@ describe('BLE helpers', () => {
     expect(normalizeMuseHost('https://hatch.metaaivm.com/ws?x=1')).toEqual({ host: 'hatch.metaaivm.com', ignoredAccountApi: false });
     expect(normalizeMuseHost('  ')).toEqual({ host: '', ignoredAccountApi: false });
     expect(normalizeMuseHost('https://api.muse.ai/')).toEqual({ host: '', ignoredAccountApi: true });
+  });
+
+  it('clears standalone hatch.token during full provision so Home Link owns auth', async () => {
+    const writes: string[] = [];
+    const client = new MuseBleProvisionerClient({
+      onLog: () => {},
+      onStatus: () => {},
+      onStep: () => {},
+      onConfirmBanner: () => {},
+      onNodeId: () => {},
+      onDeviceSdkToken: () => {},
+    });
+    const dec = new TextDecoder();
+    (client as unknown as { museCmd: unknown; museRsp: unknown }).museCmd = {
+      writeValueWithResponse: async (buf: Uint8Array) => {
+        writes.push(dec.decode(buf));
+      },
+    };
+    (client as unknown as { museRsp: unknown }).museRsp = null;
+
+    await client.runCompanionProvision({
+      ssid: 'Home',
+      password: 'secret',
+      host: 'hatch.metaaivm.com',
+      vmId: '90c04dab-dd50-4558-ac49-d42496d66171',
+      token: '',
+      clearToken: true,
+    });
+    expect(writes).toEqual([
+      'hatch.host=hatch.metaaivm.com',
+      'hatch.vm=90c04dab-dd50-4558-ac49-d42496d66171',
+      'hatch.token=',
+    ]);
   });
 });
 
