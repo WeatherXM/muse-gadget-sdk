@@ -24,6 +24,11 @@ muse-simulator.ppm
 # Local gadget provisioning and original-device flash backups.
 .sdk-token
 /backups/
+esp32/secure_boot_signing_key.pem
+esp32/tools/muse/muse_setup.secrets.json
+/*.csv
+/IMG_*.jpg
+/TUNNEL_MIGRATION_PLAN.md
 
 # Muse WG1200 Cloudflare Web Flasher build artifacts
 muse-flasher/node_modules/

@@ -119,7 +119,7 @@ typedef struct {{
     const char *version;
 }} esp_app_desc_t;
 
-static const char *s_node_id = "homelink-e3efc0";
+static const char *s_node_id = "homelink-a1b2c3";
 static const char *s_display_name = "WeatherXM WG1200";
 static char s_wifi_ssid[33] = "WeatherNet";
 static char s_register_req_id[40] = {{0}};
@@ -134,7 +134,7 @@ static void copy_wifi_ssid(char *dst, size_t cap) {{
     snprintf(dst, cap, "%s", s_wifi_ssid);
 }}
 static void make_uuid(char *dst, size_t cap) {{
-    snprintf(dst, cap, "00000000-0000-4000-8000-000000e3efc0");
+    snprintf(dst, cap, "00000000-0000-4000-8000-000000a1b2c3");
 }}
 static const esp_app_desc_t *esp_app_get_description(void) {{
     static const esp_app_desc_t desc = {{ "0.1.2-wg1200" }};

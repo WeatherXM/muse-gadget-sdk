@@ -137,7 +137,7 @@ describe('BLE helpers', () => {
   });
 
   it('names the advertised gateway when macOS lists a cached name', () => {
-    expect(museNameForNodeId('homelink-e3efc0')).toBe('MuseGadget-E3EFC0');
+    expect(museNameForNodeId('homelink-a1b2c3')).toBe('MuseGadget-A1B2C3');
     expect(museNameForNodeId('MeshCore-DeskOS')).toBeNull();
   });
 
@@ -176,13 +176,13 @@ describe('BLE helpers', () => {
       ssid: 'Home',
       password: 'secret',
       host: 'hatch.metaaivm.com',
-      vmId: '90c04dab-dd50-4558-ac49-d42496d66171',
+      vmId: '00000000-0000-4000-8000-000000a1b2c3',
       token: '',
       clearToken: true,
     });
     expect(writes).toEqual([
       'hatch.host=hatch.metaaivm.com',
-      'hatch.vm=90c04dab-dd50-4558-ac49-d42496d66171',
+      'hatch.vm=00000000-0000-4000-8000-000000a1b2c3',
       'hatch.token=',
     ]);
   });
