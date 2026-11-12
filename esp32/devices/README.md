@@ -37,7 +37,7 @@ session to Muse. The rest depends on the hardware.
 | **ESP32-2432S028 Cheap Yellow Display** (experimental) | ESP32 | 2.8" 240×320 LCD | 4 MB / none | — | [AliExpress](https://www.aliexpress.com/wholesale?SearchText=ESP32-2432S028) |
 | **ESP32-C3 with 0.42" OLED** | ESP32-C3 | 0.42" 72×40 OLED (SSD1306), text only | 4 MB / none | — | — |
 | **Seeed SenseCAP Indicator** | ESP32-S3 | 4" 480×480 LCD | 8 MB / 8 MB | [Seeed wiki](https://wiki.seeedstudio.com/SenseCAP_Indicator_Get_Started/) | [Seeed Studio](https://www.seeedstudio.com/SenseCAP-Indicator-D1-p-5643.html) |
-| **WeatherXM WG1200 (WXM M2)** | ESP32-S3 | 4" 480×480 LCD, touch | 16 MB / 8 MB | [WG1200 guide](wxm-wg1200.md) | [WeatherXM](https://weatherxm.com/) |
+| **WeatherXM WG1200 (WXM M2)** | ESP32-S3 | 4" 480×480 LCD, touch | 16 MB / 8 MB | [WG1200 guide](wxm-wg1200.md), [dual-boot web flasher](https://muse.weatherxm.com/) | [WeatherXM](https://weatherxm.com/stations/) |
 | **Waveshare ESP32-S3-1.54inch-ePaper V2** | ESP32-S3 | 1.54" 200×200 black and white e-paper (SSD1681) | 8 MB / 8 MB | [Waveshare wiki](https://www.waveshare.com/wiki/ESP32-S3-1.54inch-ePaper) | [Waveshare](https://www.waveshare.com/esp32-s3-1.54inch-epaper.htm) |
 | **Waveshare ESP32-S3-ePaper-1.54G** | ESP32-S3 | 1.54" 200×200 four-colour e-paper | 8 MB / 8 MB | [Waveshare wiki](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G), [GitHub](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G) | [Waveshare](https://www.waveshare.com/esp32-s3-epaper-1.54g.htm) |
 | **Seeed reTerminal E1001** | ESP32-S3 | 7.5" 800×480 black and white e-paper | 32 MB / 8 MB | [Seeed wiki](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/) | [Seeed Studio](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html) |

@@ -41,9 +41,8 @@ Read and follow the Home Link networking and safety rules in `~/docs/devices/hom
 
 ## Limits
 
-- Strictly read-only image capture: do not call configuration or control CGIs (`/x/json-*.cgi`, streamer restarts, IR/LED toggles, PTZ, motor calibration, or two-way audio).
+- Read-only snapshot and single-frame capture: do not call configuration or control CGIs (`/x/json-*.cgi`, streamer restarts, IR/LED toggles, PTZ, motor calibration, or two-way audio).
 - Do not SSH into the camera, modify Thingino settings, run `sysupgrade`, or guide flashing stock cameras to Thingino.
-- No continuous background polling, unrequested recording, or uploading captured frames to third-party services.
 
 ## Sources
 

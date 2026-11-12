@@ -27,7 +27,7 @@ Read and follow the Home Link networking and safety rules in `~/docs/devices/hom
 
 1. **Read local microclimate (`sensors.read`).** Each metric object reports `{ "value": <number>, "unit": "<unit>", "age_s": <seconds> }`:
    - **Outdoor (`SX1262` LoRa from `WS1001`/`WS1300`):** `outdoor_temperature` (`C`), `outdoor_humidity` (`%`), `wind_speed` (`m/s`), `wind_gust` (`m/s`), `wind_direction` (`deg`), `rain_rate` (`mm/h`), `rain_daily` (`mm`), `rain_accumulated` (`mm`), `uv_index` (`UVI`), `illuminance` (`lx`), `solar_irradiance` (`W/m2`), `station_battery` (`mV`), `lora_rssi` (`dBm`), and `lora_snr` (`dB`), plus `lora_radio` (`sx1262_detected`, `region`, `freq_hz`, `rx_packets_total`, `rx_packets_valid`, `station_model`, `station_id`).
-   - **Indoor (`BMP390`):** `barometric_pressure` (`hPa`) and `gateway_temperature` (`C`). Use `barometric_pressure` for pressure and pressure-trend analysis; treat `gateway_temperature` as console/PCB enclosure temperature warmed by the LCD, not room ambient air.
+   - **Indoor (`BMP390`):** `barometric_pressure` (`hPa`) and `gateway_temperature` (`C`, console internal temperature; use `outdoor_temperature` for ambient air).
    - Report active rain only when `rain_rate.value > 0`; `rain_daily.value` is cumulative since reset/day boundary and stays positive after rain ends.
 2. **Optional LAN sky-camera verification.** When asked to inspect the sky or combine a camera view with station telemetry, fetch a snapshot from the user's approved LAN camera over the Home Link tunnel directly into the VM (preferring sub-stream JPEGs such as Thingino `/x/ch1.jpg?token=...` for speed, or `-rtsp_transport tcp` single-frame capture).
 3. **Render onto the `480x480` screen (`display.draw_file`).**
@@ -42,11 +42,10 @@ Read and follow the Home Link networking and safety rules in `~/docs/devices/hom
 
 ## Limits
 
-- Never invoke `device.boot_weatherxm` unless the user explicitly asks to reboot the console out of Muse and back into stock WeatherXM firmware.
-- Do not claim calibrated WMO station siting or sea-level pressure unless station elevation correction is applied (`barometric_pressure` is raw station pressure at the console's altitude).
-- Do not poll LAN cameras or beep the buzzer repeatedly in the background without an explicit user schedule.
+- Read-only weather telemetry; only call `device.boot_weatherxm` when the user explicitly asks to switch the console back to WeatherXM OS.
 
 ## Sources
 
-- [WeatherXM D1 / WG1200 documentation](https://docs.weatherxm.com/)
-- [Muse Gadget SDK ESP32 protocol and display commands](../../esp32/README.md)
+- [WeatherXM Weather Stations](https://weatherxm.com/stations/)
+- [Muse × WeatherXM WG1200 Dual-Boot Web Flasher](https://muse.weatherxm.com/) ([WeatherXM/muse-gadget-sdk](https://github.com/WeatherXM/muse-gadget-sdk))
+- [WeatherXM WG1200 setup guide](../../esp32/devices/wxm-wg1200.md)
