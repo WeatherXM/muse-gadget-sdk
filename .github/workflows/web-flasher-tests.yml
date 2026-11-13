@@ -16,8 +16,15 @@ name: Web flasher tests
 
 on:
   pull_request:
+    paths:
+      - "web-flasher/**"
+      - ".github/workflows/web-flasher-tests.yml"
   push:
     branches: [main]
+    paths:
+      - "web-flasher/**"
+      - ".github/workflows/web-flasher-tests.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
