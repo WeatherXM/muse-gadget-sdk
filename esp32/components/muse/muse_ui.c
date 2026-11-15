@@ -924,6 +924,14 @@ static void build_answer(lv_obj_t *face, int ring_in)
     }
 
     l = &s_answers[ANSWER_READ];
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    /* No speaker, so every caption is read, the long "SENT:" prompt of a
+     * swipe-down card included: Montserrat's small letters, wrapped to the
+     * box by their own widths (read_glyph_px), put it on a page or two. */
+    font = &lv_font_montserrat_14;
+    cw = lv_font_get_glyph_width(font, 'M', ' ');
+    pitch = lv_font_get_line_height(font) + CAPTION_LINE_SPACE;
+#endif
     int status_bottom = (muse_board->rim_controls ? 40 : 20 + s_dy) + 16 - s_h / 2;
     l->px = MUSE_PX_W * MINI_CELL_PX;
     l->y = status_bottom + 2 + l->px / 2;   /* its sparkles clear of the status line */
@@ -934,6 +942,9 @@ static void build_answer(lv_obj_t *face, int ring_in)
     /* The widest page isn't the biggest: a round screen narrows towards the bottom. */
     /* Keep read replies in a central column clear of dedicated rim hints. */
     int max_cols = muse_board->rim_controls ? 13 : 24;
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+    max_cols = s_w / cw;   /* columns of its widest letter: the page fills the screen's width */
+#endif
     for (int c = 12; c <= max_cols && fits_across(c * cw, top, ring_in); c++) {
         int n = (reply_bottom(c * cw, ring_in) - top + CAPTION_LINE_SPACE) / pitch;
         /* A third of the caption spare for characters wider than a byte. */
@@ -1008,6 +1019,15 @@ static void on_ring_draw(lv_event_t *e)
     }
     layer->_clip_area = clip;
 }
+
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+/* The WG1200's reply font, for the pager (muse_chat_set_caption_px), as
+ * long_glyph_px() below is for the long layout. */
+static int read_glyph_px(uint32_t letter, uint32_t next)
+{
+    return lv_font_get_glyph_width(&lv_font_montserrat_14, letter, next);
+}
+#endif
 
 /* The long layout's caption font, for the pager (muse_chat_set_caption_px):
  * LVGL measures a label's lines the same way, and its built-in fonts are
@@ -2114,6 +2134,14 @@ static void update_status(muse_mode_t mode, float now)
 #endif
         if (layout != s_page_for) {
             muse_state_set_page(s_answers[layout].cols, s_answers[layout].lines);
+#if CONFIG_MUSE_BOARD_WXM_WG1200
+            /* Montserrat's letters differ in width: the pager wraps each line
+             * to the box in pixels, and the columns only cap a line of narrow
+             * letters (a third of the caption spare for multi-byte ones). */
+            muse_chat_set_caption_px(s_answers[layout].w, read_glyph_px);
+            muse_state_set_page(MUSE_CAPTION_MAX * 2 / 3 / s_answers[layout].lines - 1,
+                                s_answers[layout].lines);
+#endif
             s_page_for = layout;
 #if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
             view.stale = true;   /* a page wrapped for the old layout is wrapped again */

@@ -238,7 +238,6 @@ bool muse_hatch_caption_at(const char *text, size_t at, char *out, size_t cap)
     }
 }
 
-#if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
 /*
  * Pages of up to `lines` whole lines, each also fitting `cap` bytes (a page of
  * CJK, three bytes a character, can hold fewer lines than the layout). As in
@@ -283,7 +282,6 @@ int muse_chat_caption_page(const char *text, int page, char *out, size_t cap)
     }
     return pages;
 }
-#endif
 
 /* ---- Typed turns on the serial console ---- */
 
