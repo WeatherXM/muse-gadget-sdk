@@ -58,6 +58,9 @@ static pending_t s_pending;
 static std::atomic<bool> s_incoming{false};
 static std::atomic<bool> s_incoming_used{true};
 static char s_reply_shown[EV_TEXT];
+#define SENT_PAGE_S 8
+static char *s_sent;
+static int s_sent_slot;
 static int64_t s_last_seq, s_last_row_seq, s_marks[4];
 static void *psram_alloc(size_t n) { return malloc(n); }
 static int captions, console_events;
@@ -119,11 +122,12 @@ static bool has_reply_text() {
     }
     return false;
 }
-#if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
-/* The real review store, read back whole: one page holds all of it here. */
+/* A touchscreen turn's prompt, and the real review store, read back whole:
+ * one page holds all of it here. */
 int muse_chat_caption_page(const char *text, int, char *out, size_t cap) {
     strlcpy(out, text, cap); return 1;
 }
+#if CONFIG_MUSE_BOARD_SENSECAP_WATCHER
 void muse_text_to_ascii(char *, size_t) {}
 void muse_text_to_caption(char *, size_t) {}
 #endif
